@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。**
 
-当前只做到 **V21**。没有 LangGraph，没有 Agent Loop，没有 Memory / RAG / MCP / 数据库 / 前端。
+当前做到 **V22**。V21 学 LangChain 组件，V22 学最小 LangGraph 工作流。没有 Agent Loop、Memory、RAG、MCP、数据库、前端。
 
 ---
 
@@ -81,6 +81,7 @@ LLM_MODEL=qwen-plus
 | 5 | `pnpm demo:parser` | `src/demos/05-output-parser.ts` | 解析发生在模型之后 |
 | 6 | `pnpm demo:structured` | `src/demos/06-structured-output.ts` | Zod + 类型 + 运行时校验 |
 | 7 | `pnpm demo:tool` | `src/demos/07-tool.ts` | 只定义和执行 Tool，不让模型选 |
+| 8 | `pnpm v22` | `src/v22/langgraph-basic.ts` | State / Node / Edge / Graph |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -373,6 +374,7 @@ src/
   demos/05-output-parser.ts
   demos/06-structured-output.ts
   demos/07-tool.ts
+  v22/langgraph-basic.ts     V22 最小 Graph
   index.ts                   打印学习顺序
 ```
 
@@ -382,15 +384,14 @@ src/
 
 ## 本版本明确不做
 
-- LangGraph
-- Agent Loop
-- Memory
+- Agent Loop / Tool Calling 循环（V23）
+- Conditional Edge
+- Memory / Checkpoint
 - RAG / MCP
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
-- V22
 
-先把这 7 个积木看熟。框架再往后，只是在这些积木上加循环、状态和持久化。
+V21 把组件看熟，V22 把固定顺序的 Graph 看懂。循环和分支放到后面。
 
 ---
 
@@ -413,3 +414,23 @@ src/
 5. `src/demos/06-structured-output.ts` → `withStructuredOutput(...)` 和后面的 `invoke`  
    看 Zod Schema 如何变成一次 Structured Output 调用，返回值已经是对象而不是 JSON 字符串。  
    对比 `src/demos/07-tool.ts` 的 `calculator.invoke()`：那里完全不发 HTTP，走的是本地 JS。
+
+---
+
+## V22 · LangGraph Fundamentals
+
+一句话：**LangGraph = 用 State 保存过程数据，用 Node 做事情，用 Edge 决定下一步，最后把整个 AI 流程组织成 Graph。**
+
+- **State** = 数据。整个 Graph 执行期间，多个 Node 共享这一份。
+- **Node** = 步骤。读 State，做事（这里是调 Chat Model），返回要更新的字段。
+- **Edge** = 流转关系。这一版只有普通边，顺序固定。
+- **Graph** = 完整流程。`START → analyzeQuestion → generateAnswer → END`
+
+运行：`pnpm v22`
+
+| 手写版 | LangGraph |
+| --- | --- |
+| `const state = { question, analysis, answer }` | State |
+| `analyzeQuestion()` / `generateAnswer()` | Node |
+| `await analyze(); await generate();` | Edge |
+| 整个流程函数 | Graph |

@@ -13,6 +13,7 @@ V21 · LangChain Fundamentals
   5. pnpm demo:parser       StringOutputParser / JsonOutputParser
   6. pnpm demo:structured   Zod + withStructuredOutput
   7. pnpm demo:tool         tool() 定义并直接 invoke
+  8. pnpm v22               LangGraph：State / Node / Edge / Graph
 
 先复制环境变量：
 

@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "V21 LangChain Fundamentals 学习项目。对应手写 Agent 项目 V1～V7 的基础能力，不引入 LangGraph / Agent Loop。",
+  "description": "LangChain / LangGraph 学习项目。V21 学组件，V22 学最小 Graph 工作流。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -16,10 +16,12 @@
     "demo:lcel": "tsx src/demos/04-lcel.ts",
     "demo:parser": "tsx src/demos/05-output-parser.ts",
     "demo:structured": "tsx src/demos/06-structured-output.ts",
-    "demo:tool": "tsx src/demos/07-tool.ts"
+    "demo:tool": "tsx src/demos/07-tool.ts",
+    "v22": "tsx src/v22/langgraph-basic.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.1.17",
+    "@langchain/langgraph": "^1.4.12",
     "@langchain/openai": "^1.2.3",
     "dotenv": "^16.6.1",
     "zod": "^3.25.76"
