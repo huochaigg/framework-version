@@ -14,6 +14,7 @@ V21 · LangChain Fundamentals
   6. pnpm demo:structured   Zod + withStructuredOutput
   7. pnpm demo:tool         tool() 定义并直接 invoke
   8. pnpm v22               LangGraph：State / Node / Edge / Graph
+  9. pnpm v23               LangGraph Agent Loop
 
 先复制环境变量：
 

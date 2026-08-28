@@ -1,6 +1,6 @@
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
 import { printError } from "../config/llm";
+import { calculator } from "../tools/calculator";
+import { getCurrentTime } from "../tools/current-time";
 
 /**
  * Demo 7：Tool
@@ -18,61 +18,8 @@ import { printError } from "../config/llm";
  *
  * 不要让模型选择 Tool。
  * 不要写 Agent Loop。
- * 「模型决定调用哪个 Tool → 执行 → 再把结果发给模型」放到后续版本。
+ * 「模型决定调用哪个 Tool → 执行 → 再把结果发给模型」放到 V23。
  */
-
-const calculator = tool(
-  ({ a, b, operation }) => {
-    if (operation === "add") {
-      return { result: a + b };
-    }
-
-    if (operation === "subtract") {
-      return { result: a - b };
-    }
-
-    if (operation === "multiply") {
-      return { result: a * b };
-    }
-
-    if (b === 0) {
-      throw new Error("除数不能为 0");
-    }
-
-    return { result: a / b };
-  },
-  {
-    name: "calculator",
-    description: "对两个数字做加减乘除。",
-    schema: z.object({
-      a: z.number().describe("第一个数字"),
-      b: z.number().describe("第二个数字"),
-      operation: z.enum(["add", "subtract", "multiply", "divide"]).describe("运算类型")
-    })
-  }
-);
-
-const getCurrentTime = tool(
-  ({ timezone }) => {
-    const now = new Date();
-
-    return {
-      timezone,
-      iso: now.toISOString(),
-      localTime: now.toLocaleString("zh-CN", {
-        timeZone: timezone,
-        hour12: false
-      })
-    };
-  },
-  {
-    name: "getCurrentTime",
-    description: "按指定时区返回当前时间。",
-    schema: z.object({
-      timezone: z.string().describe("IANA 时区，例如 Asia/Shanghai")
-    })
-  }
-);
 
 async function main() {
   try {
@@ -115,8 +62,7 @@ async function main() {
     console.log("Asia/Shanghai：", shanghaiTime);
     console.log("America/New_York：", newYorkTime);
     console.log("");
-    console.log("下一步才会学：把这两个 Tool bind 到模型上，让模型自己决定调哪一个。");
-    console.log("那是 Agent Loop / LangGraph 的事，本版本故意停在这里。");
+    console.log("下一步是 V23：把这两个 Tool bind 到模型上，让模型自己决定调哪一个。");
   } catch (error) {
     printError(error);
     process.exitCode = 1;

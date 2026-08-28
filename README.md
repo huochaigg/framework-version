@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。**
 
-当前做到 **V22**。V21 学 LangChain 组件，V22 学最小 LangGraph 工作流。没有 Agent Loop、Memory、RAG、MCP、数据库、前端。
+当前做到 **V23**。V21 学 LangChain 组件，V22 学最小 Graph，V23 学 Agent Loop。没有 Memory、RAG、MCP、Streaming、数据库、前端。
 
 ---
 
@@ -82,6 +82,7 @@ LLM_MODEL=qwen-plus
 | 6 | `pnpm demo:structured` | `src/demos/06-structured-output.ts` | Zod + 类型 + 运行时校验 |
 | 7 | `pnpm demo:tool` | `src/demos/07-tool.ts` | 只定义和执行 Tool，不让模型选 |
 | 8 | `pnpm v22` | `src/v22/langgraph-basic.ts` | State / Node / Edge / Graph |
+| 9 | `pnpm v23` | `src/v23/agent-loop.ts` | Conditional Edge + ToolNode + 回边 |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -375,6 +376,9 @@ src/
   demos/06-structured-output.ts
   demos/07-tool.ts
   v22/langgraph-basic.ts     V22 最小 Graph
+  v23/agent-loop.ts          V23 Agent Loop
+  tools/calculator.ts
+  tools/current-time.ts
   index.ts                   打印学习顺序
 ```
 
@@ -384,14 +388,13 @@ src/
 
 ## 本版本明确不做
 
-- Agent Loop / Tool Calling 循环（V23）
-- Conditional Edge
 - Memory / Checkpoint
 - RAG / MCP
+- Streaming
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V21 把组件看熟，V22 把固定顺序的 Graph 看懂。循环和分支放到后面。
+V23 把 Agent Loop 跑明白即可。持久化、检索、流式放到后面。
 
 ---
 
@@ -434,3 +437,20 @@ V21 把组件看熟，V22 把固定顺序的 Graph 看懂。循环和分支放�
 | `analyzeQuestion()` / `generateAnswer()` | Node |
 | `await analyze(); await generate();` | Edge |
 | 整个流程函数 | Graph |
+
+---
+
+## V23 · LangGraph Agent Loop
+
+一句话：手写 Agent Loop 就是「模型节点 + 工具节点 + 条件判断 + 回边循环」，LangGraph 把它显式建模成 Graph。
+
+运行：`pnpm v23`
+
+| 手写 V7 | LangGraph |
+| --- | --- |
+| `while (true)` | Graph 回边 `tools → callModel` |
+| `if (tool_calls)` | Conditional Edge |
+| `executeTool()` | ToolNode |
+| `messages.push(...)` | Messages State 更新 |
+| `break` | END |
+| 整个 `runAgent()` | compiled Graph |
