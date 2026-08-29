@@ -16,6 +16,7 @@ V21 · LangChain Fundamentals
   8. pnpm v22               LangGraph：State / Node / Edge / Graph
   9. pnpm v23               LangGraph Agent Loop
   10. pnpm v24              LangGraph Memory + Checkpoint
+  11. pnpm v25              LangGraph Agentic RAG
 
 先复制环境变量：
 

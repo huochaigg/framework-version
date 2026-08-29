@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。**
 
-当前做到 **V24**。V21 学组件，V22 学 Graph，V23 学 Agent Loop，V24 学 thread 级 Memory + Checkpoint。没有长期记忆、RAG、MCP、Streaming、数据库、前端。
+当前做到 **V25**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
 
 ---
 
@@ -64,7 +64,7 @@ LLM_MODEL=qwen-plus
 
 模型初始化只放在 `src/config/llm.ts`。每个 Demo 都复用它。
 
-如果你已经跑过手写项目 `agent_learn`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。
+如果你已经跑过手写项目 `agent_learn`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 时再填 `EMBEDDING_*`。
 
 ---
 
@@ -84,6 +84,7 @@ LLM_MODEL=qwen-plus
 | 8 | `pnpm v22` | `src/v22/langgraph-basic.ts` | State / Node / Edge / Graph |
 | 9 | `pnpm v23` | `src/v23/agent-loop.ts` | Conditional Edge + ToolNode + 回边 |
 | 10 | `pnpm v24` | `src/v24/memory-checkpoint.ts` | thread_id + Checkpointer |
+| 11 | `pnpm v25` | `src/v25/agentic-rag.ts` | 普通 RAG vs Agentic RAG |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -380,6 +381,9 @@ src/
   v23/agent-loop.ts          V23 Agent Loop
   v23/create-agent-graph.ts  V23 / V24 共用 Graph
   v24/memory-checkpoint.ts   V24 Memory + Checkpoint
+  v25/agentic-rag.ts         V25 Agentic RAG
+  rag/knowledge.ts
+  config/embedding.ts
   tools/calculator.ts
   tools/current-time.ts
   index.ts                   打印学习顺序
@@ -392,14 +396,16 @@ src/
 ## 本版本明确不做
 
 - 长期用户记忆 / 跨 thread 画像
-- Memory 提取、总结、向量化
-- RAG / MCP
+- 真实 PostgreSQL + pgvector
+- query rewrite / rerank / 二次评分
+- Retriever 包装成 Tool
+- MCP / Web Search / 多 Agent
 - Streaming / SSE
 - interrupt / resume / time travel
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V24 只做 thread 级短期记忆。进程重启后内存 Checkpoint 丢失是允许的。
+V25 只做到「是否检索」的 Agentic RAG。知识库是内存文本，不是生产向量库。
 
 ---
 
@@ -478,3 +484,27 @@ V24 只做 thread 级短期记忆。进程重启后内存 Checkpoint 丢失是�
 | `conversationId + getMessages()` | `thread_id + checkpointer` |
 | `saveMessages()` | Checkpoint 自动保存 |
 | 手动加载历史 messages | Checkpoint 自动恢复 State |
+
+---
+
+## V25 · LangGraph RAG / Agentic RAG
+
+一句话：普通 RAG 是固定流程；Agentic RAG 是让模型参与「要不要检索、接下来走哪条路径」。LangGraph 的价值不是替我做 embedding，而是把判断、检索、生成、分支组织成可控制的工作流。
+
+- 普通 RAG：`Question → Retrieve → Generate`
+- Agentic RAG：`Question → Decide → Retrieve 或 Direct → Generate`
+
+V23 的 Conditional Edge 判断有没有 Tool Call；V25 判断要不要走 RAG。
+
+真实项目里还有另一种做法：把 Retriever 包装成 Tool，让 Agent 自己决定是否调用检索。这一版用 Node + Conditional Edge 就够了。
+
+运行：`pnpm v25`
+
+需要额外配置 Embedding：`EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL`
+
+| 手写 V17 | LangGraph |
+| --- | --- |
+| `vectorSearch()` | Retriever / VectorStore.similaritySearch |
+| `if (needRag)` | Conditional Edge |
+| `buildContext()` | RAG Node 里组织 Documents |
+| 整个 RAG pipeline | Graph 上的多个 Node |

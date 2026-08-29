@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint。",
+  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -19,9 +19,11 @@
     "demo:tool": "tsx src/demos/07-tool.ts",
     "v22": "tsx src/v22/langgraph-basic.ts",
     "v23": "tsx src/v23/agent-loop.ts",
-    "v24": "tsx src/v24/memory-checkpoint.ts"
+    "v24": "tsx src/v24/memory-checkpoint.ts",
+    "v25": "tsx src/v25/agentic-rag.ts"
   },
   "dependencies": {
+    "@langchain/classic": "^1.0.45",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^1.4.12",
     "@langchain/openai": "^1.2.3",
