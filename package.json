@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 学组件，V22 学最小 Graph，V23 学 Agent Loop。",
+  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -18,7 +18,8 @@
     "demo:structured": "tsx src/demos/06-structured-output.ts",
     "demo:tool": "tsx src/demos/07-tool.ts",
     "v22": "tsx src/v22/langgraph-basic.ts",
-    "v23": "tsx src/v23/agent-loop.ts"
+    "v23": "tsx src/v23/agent-loop.ts",
+    "v24": "tsx src/v24/memory-checkpoint.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.1.17",

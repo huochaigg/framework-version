@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。**
 
-当前做到 **V23**。V21 学 LangChain 组件，V22 学最小 Graph，V23 学 Agent Loop。没有 Memory、RAG、MCP、Streaming、数据库、前端。
+当前做到 **V24**。V21 学组件，V22 学 Graph，V23 学 Agent Loop，V24 学 thread 级 Memory + Checkpoint。没有长期记忆、RAG、MCP、Streaming、数据库、前端。
 
 ---
 
@@ -83,6 +83,7 @@ LLM_MODEL=qwen-plus
 | 7 | `pnpm demo:tool` | `src/demos/07-tool.ts` | 只定义和执行 Tool，不让模型选 |
 | 8 | `pnpm v22` | `src/v22/langgraph-basic.ts` | State / Node / Edge / Graph |
 | 9 | `pnpm v23` | `src/v23/agent-loop.ts` | Conditional Edge + ToolNode + 回边 |
+| 10 | `pnpm v24` | `src/v24/memory-checkpoint.ts` | thread_id + Checkpointer |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -377,6 +378,8 @@ src/
   demos/07-tool.ts
   v22/langgraph-basic.ts     V22 最小 Graph
   v23/agent-loop.ts          V23 Agent Loop
+  v23/create-agent-graph.ts  V23 / V24 共用 Graph
+  v24/memory-checkpoint.ts   V24 Memory + Checkpoint
   tools/calculator.ts
   tools/current-time.ts
   index.ts                   打印学习顺序
@@ -388,13 +391,15 @@ src/
 
 ## 本版本明确不做
 
-- Memory / Checkpoint
+- 长期用户记忆 / 跨 thread 画像
+- Memory 提取、总结、向量化
 - RAG / MCP
-- Streaming
+- Streaming / SSE
+- interrupt / resume / time travel
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V23 把 Agent Loop 跑明白即可。持久化、检索、流式放到后面。
+V24 只做 thread 级短期记忆。进程重启后内存 Checkpoint 丢失是允许的。
 
 ---
 
@@ -454,3 +459,22 @@ V23 把 Agent Loop 跑明白即可。持久化、检索、流式放到后面。
 | `messages.push(...)` | Messages State 更新 |
 | `break` | END |
 | 整个 `runAgent()` | compiled Graph |
+
+---
+
+## V24 · LangGraph Memory + Checkpoint
+
+一句话：模型没有突然拥有记忆。是 `thread_id + checkpointer` 保存并恢复之前的 State，下一次调用才能看到旧 messages。
+
+- **State** = 当前 Graph 运行中的数据
+- **Checkpoint** = 整个 Graph State 的快照（不只是聊天记录）
+- **thread_id** = 找到对应会话状态的标识，不是 userId
+- **Memory** = 利用历史 State 形成的连续对话效果
+
+运行：`pnpm v24`
+
+| 手写版 | LangGraph |
+| --- | --- |
+| `conversationId + getMessages()` | `thread_id + checkpointer` |
+| `saveMessages()` | Checkpoint 自动保存 |
+| 手动加载历史 messages | Checkpoint 自动恢复 State |
