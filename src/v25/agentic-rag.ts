@@ -1,11 +1,9 @@
 import { HumanMessage } from "@langchain/core/messages";
-import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
 import { Annotation, END, START, StateGraph, messagesStateReducer } from "@langchain/langgraph";
 import type { BaseMessage } from "@langchain/core/messages";
 import { z } from "zod";
 import { createChatModel, printError } from "../config/llm";
-import { createEmbeddings } from "../config/embedding";
-import { knowledgeDocuments } from "../rag/knowledge";
+import { createKnowledgeStore } from "../rag/store";
 
 /**
  * V25 · LangGraph RAG / Agentic RAG
@@ -89,9 +87,7 @@ function printResult(question: string, routeLabel: string, docCount: number | nu
 
 async function main() {
   try {
-    const embeddings = createEmbeddings();
-    // 手写 V17：embedding(docs) → 写入向量库
-    const vectorStore = await MemoryVectorStore.fromDocuments(knowledgeDocuments, embeddings);
+    const vectorStore = await createKnowledgeStore();
     const model = createChatModel();
     const router = model.withStructuredOutput(RouteSchema, {
       name: "RagRoute",

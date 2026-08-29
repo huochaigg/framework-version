@@ -1,7 +1,7 @@
 import { Document } from "@langchain/core/documents";
 
 /**
- * 内存知识库。V25 不接 PostgreSQL / pgvector，也不做 PDF Loader。
+ * 内存知识库。V25 / V26 共用，不接 PostgreSQL / pgvector，也不做 PDF Loader。
  * 启动时转成 Documents → Embedding → MemoryVectorStore。
  */
 export const knowledgeDocuments: Document[] = [
@@ -36,5 +36,9 @@ export const knowledgeDocuments: Document[] = [
   new Document({
     pageContent:
       "MemorySaver 是内存 Checkpointer。进程重启后数据会丢失。生产环境才需要 Postgres 等持久化 Checkpointer。"
+  }),
+  new Document({
+    pageContent:
+      "LangGraph uses thread_id together with a checkpointer to restore graph state between invocations. The same thread_id continues the previous conversation because the checkpointer reloads saved messages; a new thread_id starts empty."
   })
 ];

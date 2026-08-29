@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。**
 
-当前做到 **V25**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
+当前做到 **V26**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
 
 ---
 
@@ -85,6 +85,7 @@ LLM_MODEL=qwen-plus
 | 9 | `pnpm v23` | `src/v23/agent-loop.ts` | Conditional Edge + ToolNode + 回边 |
 | 10 | `pnpm v24` | `src/v24/memory-checkpoint.ts` | thread_id + Checkpointer |
 | 11 | `pnpm v25` | `src/v25/agentic-rag.ts` | 普通 RAG vs Agentic RAG |
+| 12 | `pnpm v26` | `src/v26/advanced-agentic-rag.ts` | Grade + Rewrite 循环 |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -382,7 +383,9 @@ src/
   v23/create-agent-graph.ts  V23 / V24 共用 Graph
   v24/memory-checkpoint.ts   V24 Memory + Checkpoint
   v25/agentic-rag.ts         V25 Agentic RAG
+  v26/advanced-agentic-rag.ts V26 Advanced Agentic RAG
   rag/knowledge.ts
+  rag/store.ts
   config/embedding.ts
   tools/calculator.ts
   tools/current-time.ts
@@ -397,15 +400,16 @@ src/
 
 - 长期用户记忆 / 跨 thread 画像
 - 真实 PostgreSQL + pgvector
-- query rewrite / rerank / 二次评分
+- Reranker / Multi Query / HyDE
 - Retriever 包装成 Tool
-- MCP / Web Search / 多 Agent
-- Streaming / SSE
+- Web Search fallback / Corrective RAG 外部搜索
+- Self-RAG Token / 多 Agent
+- MCP / Streaming / SSE
 - interrupt / resume / time travel
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」的 Agentic RAG。知识库是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -508,3 +512,51 @@ V23 的 Conditional Edge 判断有没有 Tool Call；V25 判断要不要走 RAG�
 | `if (needRag)` | Conditional Edge |
 | `buildContext()` | RAG Node 里组织 Documents |
 | 整个 RAG pipeline | Graph 上的多个 Node |
+
+---
+
+## V26 · LangGraph Advanced Agentic RAG
+
+一句话：Agentic RAG 不只是「Agent 可以调用向量库」。更重要的是模型能参与 RAG 流程中的决策：要不要检索、检索结果有没有用、要不要改写问题、什么时候停止重试。
+
+V25 只有分支。V26 开始真正出现判断 + 回退 + 循环。LangGraph 适合复杂 RAG，正是因为这些决策可以写成 Node + Conditional Edge + 回边，而不必在 Graph 外面手写 `while`。
+
+### 三种 RAG 差在哪
+
+| 版本 | 流程 |
+| --- | --- |
+| 普通 RAG | `retrieve → generate` |
+| V25 Agentic RAG | `decide → retrieve / direct → generate` |
+| V26 Advanced Agentic RAG | `decide → retrieve → grade → rewrite / retrieve → generate / fallback` |
+
+### 为什么 similarity score 不等于「文档一定有用」
+
+向量距离只能说明语义相近程度。相近不等于文档真包含回答当前问题所需的信息。Retriever 负责「找相似」；Grader 负责「这些内容能不能回答问题」。两者职责不同，所以不能只看 similarity score 或关键词命中。
+
+### 为什么需要 Query Rewrite
+
+用户的问题是为了交流而写的，常常有代词、省略、口语。Retriever 更喜欢明确的语义检索表达。例如「那个图框架是怎么记住我上一句话的？」改写成「LangGraph checkpointer thread_id conversation memory」后，更容易命中知识库里的英文条目。
+
+### 手写版映射
+
+循环逻辑必须写在 Graph Edge 里，不要在 Graph 外面再套一层 `while`。
+
+| 手写逻辑 | LangGraph |
+| --- | --- |
+| `if (needRag)` | `decideRoute` + Conditional Edge |
+| `docs = search(query)` | `retrieveKnowledge` Node（用当前 `query`，不是永远用原问题） |
+| `if (docsRelevant)` | `gradeDocuments` + Conditional Edge |
+| `query = rewriteQuery(query)` | `rewriteQuery` Node |
+| `while (!relevant)` | Graph 回边：`rewriteQuery → retrieveKnowledge` |
+| `maxRetry` | State 里的 `rewriteCount`，达到上限走 `fallbackAnswer` |
+
+运行：`pnpm v26`
+
+打断点建议：
+
+1. 第一次进入 `retrieveKnowledge` 时的 `query`
+2. 第一次检索完成后的 `retrievedDocs`
+3. `gradeDocuments` 返回 `relevant` / `irrelevant`
+4. `rewriteQuery` 执行前后的 `query` 对比
+5. 第二次 retrieve 确认用的是改写后的 query
+6. `rewriteCount` 达到限制后 Conditional Edge 如何进入 fallback
