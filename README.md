@@ -2,11 +2,11 @@
 
 这不是产品文档。这是从「手写 Agent」跨进「框架」的第一课。
 
-对应手写项目：`/Users/dukun/code/learn/agent_learn`（V1～V20）
+对应手写项目：`D:\learn\agent\MyProject\`（V1～V20）
 
-本仓库是全新独立项目。**不要改原来的手写代码。**
+本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V26**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
+当前做到 **V27**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE）。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
 
 ---
 
@@ -42,9 +42,9 @@ Prompt / Messages / Model / Parser / Tool
 ## 开始之前
 
 ```bash
-cd /Users/dukun/code/learn/framework-version
+cd D:\learn\agent\framework-version
 pnpm install
-cp .env.example .env
+copy .env.example .env
 ```
 
 编辑 `.env`：
@@ -64,7 +64,7 @@ LLM_MODEL=qwen-plus
 
 模型初始化只放在 `src/config/llm.ts`。每个 Demo 都复用它。
 
-如果你已经跑过手写项目 `agent_learn`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 时再填 `EMBEDDING_*`。
+如果你已经跑过手写项目 `D:\learn\agent\MyProject\`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 以后再填 `EMBEDDING_*`。
 
 ---
 
@@ -86,6 +86,7 @@ LLM_MODEL=qwen-plus
 | 10 | `pnpm v24` | `src/v24/memory-checkpoint.ts` | thread_id + Checkpointer |
 | 11 | `pnpm v25` | `src/v25/agentic-rag.ts` | 普通 RAG vs Agentic RAG |
 | 12 | `pnpm v26` | `src/v26/advanced-agentic-rag.ts` | Grade + Rewrite 循环 |
+| 13 | `pnpm v27` | `src/v27/advanced-rag.ts` | Rerank / Multi Query / HyDE |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -384,8 +385,13 @@ src/
   v24/memory-checkpoint.ts   V24 Memory + Checkpoint
   v25/agentic-rag.ts         V25 Agentic RAG
   v26/advanced-agentic-rag.ts V26 Advanced Agentic RAG
+  v27/advanced-rag.ts        V27 Advanced RAG
   rag/knowledge.ts
   rag/store.ts
+  rag/rerank.ts
+  rag/multi-query.ts
+  rag/hyde.ts
+  rag/preview.ts
   config/embedding.ts
   tools/calculator.ts
   tools/current-time.ts
@@ -400,7 +406,7 @@ src/
 
 - 长期用户记忆 / 跨 thread 画像
 - 真实 PostgreSQL + pgvector
-- Reranker / Multi Query / HyDE
+- 第三方 Rerank API（Cohere / Jina）、Elasticsearch、BM25 / Hybrid Search
 - Retriever 包装成 Tool
 - Web Search fallback / Corrective RAG 外部搜索
 - Self-RAG Token / 多 Agent
@@ -409,7 +415,7 @@ src/
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE，不再扩展 Agent Loop。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -560,3 +566,126 @@ V25 只有分支。V26 开始真正出现判断 + 回退 + 循环。LangGraph �
 4. `rewriteQuery` 执行前后的 `query` 对比
 5. 第二次 retrieve 确认用的是改写后的 query
 6. `rewriteCount` 达到限制后 Conditional Edge 如何进入 fallback
+
+---
+
+## V27 · Advanced RAG Techniques
+
+一句话：**只靠一次向量 TopK 往往不够。** 语义相似不等于最适合回答；一种问法也可能漏召回。V27 不继续扩 Agent Loop，专门看检索质量。
+
+运行：`pnpm v27`
+
+改 `src/v27/advanced-rag.ts` 里的 `STRATEGY` 可以只跑一种策略。默认 `all`，用两个问题对照：
+
+- `LangGraph 是怎么记住前面对话，并在下一次调用时恢复状态的？`
+- `那个图框架怎么知道我刚才说过什么？`
+
+知识库太小时，结果差异可能不明显。这一版不要求证明谁一定更准，重点是看每种方法改了 RAG 的哪一环。
+
+### 四种方法分别改了哪一环
+
+| 方法 | 它做了什么 | 解决什么 |
+| --- | --- | --- |
+| Baseline RAG | 原问题直接检索 | 对照组：Question → Embedding → TopK → Documents |
+| Multi Query | 一个问题变成多个 Query | **提高 Recall（召回）**：减少「一种说法漏掉相关文档」 |
+| HyDE | 问题先变成假设文档，再检索 | 缩小「问题语言」和「文档语言」的结构差异 |
+| Rerank | 对已经召回的候选重新精排 | **提高 Precision（精确）**：语义相似 ≠ 最适合回答 |
+
+**Multi Query 提高 Recall，Rerank 提高 Precision。** 两者不是同一个东西。Multi Query 解决「召回不足」；Rerank 解决「已经召回的候选排序不够准」。
+
+常见组合是 `multi-query + rerank`，入口里单独有这一项。不要把 HyDE + Multi Query + Rerank + Grade + Rewrite 一次全跑，那样又看不清重点。
+
+### RAG 优化处在哪一层
+
+以后看到任何 RAG 技巧，先问它属于哪一层：
+
+| 阶段 | 做什么 | 例子 |
+| --- | --- | --- |
+| 检索前 | 改「拿什么去搜」 | Query Rewrite、Multi Query、HyDE |
+| 检索中 | Embedding → Vector Search → TopK | 手写 V17 的 `searchSimilarChunks`，LangChain 的 `similaritySearch` |
+| 检索后 | 改「留下哪些、什么顺序」 | Rerank、过滤、Grade |
+| 生成 | Context + Question → LLM | `buildContext()` 之后才调模型 |
+
+生产里常见的完整链路是：
+
+```text
+Question → Query Rewrite / Multi Query → Vector Search Top20 → Rerank Top5 → LLM Generate
+```
+
+V27 把这些环节拆开演示，而不是塞进一个超级 Graph。
+
+### 对照手写 V17
+
+参考项目：`D:\learn\agent\MyProject\`（只读，不要改那里的文件）
+
+V17 的主路径是：
+
+```text
+question → embedQuery() → searchSimilarChunks(topK) → buildContext() → LLM
+```
+
+这就是最基础的 **Baseline RAG**。`vectorRetriever.ts` 里的 `vectorRetrieve()`，对应本仓库 `VectorStore.similaritySearch`。`rag.ts` 里的 context 拼接，对应 Generate 前把 Documents 拼进 Prompt。
+
+V27 学的不是再写一遍 pgvector，而是：在这条基础流程的**检索前**和**检索后**加质量优化。检索阶段本身没变，仍然是 Embedding + Vector Search + TopK。这一版继续用 V25/V26 的 MemoryVectorStore，避免数据库干扰学习。
+
+| 手写 V17 | 本仓库 |
+| --- | --- |
+| `embedQuery(question)` | VectorStore 内部 `embedQuery` |
+| `searchSimilarChunks({ embedding, topK })` | `similaritySearch(query, k)` |
+| `ORDER BY embedding <=> vector LIMIT k` | 语义相似度 TopK |
+| `buildContext(chunks)` | 把最终 Documents 拼进 Prompt |
+| 没有二次排序 | V27 Rerank：`Top10 → score → sort → Top3` |
+| 只用原始 question 检索 | V27 Multi Query / HyDE 先改检索文本 |
+
+LangChain 没有神奇改变底层原理。它只是 Retriever、Document、Runnable、Structured Output 让这套流程更容易组合。
+
+### Baseline
+
+用户问题 → Embedding → similarity search Top5 → Documents → Generate。
+
+直接复用 V25/V26 的 `createKnowledgeStore()` + `similaritySearch`，不重写知识库初始化。只打印文档标题或前几十个字符，不打印 embedding 和 metadata dump。
+
+### Rerank
+
+Vector Search 的 TopK 是语义相似度排序。相近不等于这些文档一定最适合回答当前问题。
+
+流程：`Retriever 先取 Top10 → LLM 给每篇 0～100 分 → 按分数排 → 取 Top3 → Generate`。
+
+Reranker **只打分，不生成答案**。控制台会对比 Vector Top5 和 Rerank 后 Top3，排序可能变化。
+
+手写版如果自己做，就是：`vectorSearch(topK=10) → scoreDocuments(question, docs) → sort → slice(0, 3)`。这一版用 LLM Structured Output，不接第三方 Rerank API。
+
+### Multi Query
+
+用户一句话只有一种表达，知识库里同一个概念可能有多种表达（中文、英文、实现细节）。只 embedding 原问题，可能漏召回。
+
+流程：`Question → 生成 3 个 Query → 各检索 Top3 → Merge/Dedupe → Generate`。
+
+不要生成 10～20 个 Query。组合演示才再交给 Rerank：`Question → Multi Query → 多次 Retrieve → Merge/Dedupe → Rerank → Generate`。
+
+### HyDE（Hypothetical Document Embeddings）
+
+HyDE 不是先 embedding 用户问题，而是先让 LLM 写一段「假设会出现在技术文档里的答案」，再对这段假设文档做 embedding 去检索真实知识库。
+
+为什么可能有效：问题和文档的语言结构不同。先把问题变成「类似文档的表达」，检索更容易对上真实片段。
+
+**风险：** 假设文档是模型生成的，可能包含错误。它只用于检索，不能当最终事实。最终回答必须基于真正检索到的 Documents。Prompt 要求只写 1～3 句文档摘录，不要长文。
+
+### 打断点（按这个顺序看数据）
+
+1. Baseline 使用原始 `question` 做 `similaritySearch` 的地方
+2. Multi Query 生成三个 queries 后的结果
+3. 三个 Query 分别检索，然后 Merge/Dedupe 后的 Documents
+4. Rerank 前后的 Documents 顺序和 score
+5. HyDE：原始 question → hypothetical document
+6. HyDE 实际传给 VectorStore 的检索文本（确认不是原始问题）
+
+看的是 question → query → docs → rerank docs → context → answer。不必细究 LangChain 源码。
+
+### 这一版明确不做
+
+- 第三方 Rerank API、Elasticsearch、BM25 / Hybrid Search
+- 真实生产知识库、Web Search、PostgreSQL 持久化
+- Agent Loop / Checkpoint / Human in the Loop
+- React / SSE
+- V28

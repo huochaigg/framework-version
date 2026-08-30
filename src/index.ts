@@ -18,6 +18,7 @@ V21 · LangChain Fundamentals
   10. pnpm v24              LangGraph Memory + Checkpoint
   11. pnpm v25              LangGraph Agentic RAG
   12. pnpm v26              LangGraph Advanced Agentic RAG
+  13. pnpm v27              Advanced RAG：Rerank / Multi Query / HyDE
 
 先复制环境变量：
 
