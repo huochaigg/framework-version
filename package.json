@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence。",
+  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence，V30 Streaming。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -28,7 +28,12 @@
     "v29-memory": "tsx src/v29/01-memory-checkpoint.ts",
     "v29-save": "tsx src/v29/02-persistent-save.ts",
     "v29-resume": "tsx src/v29/03-persistent-resume.ts",
-    "v29-threads": "tsx src/v29/04-thread-isolation.ts"
+    "v29-threads": "tsx src/v29/04-thread-isolation.ts",
+    "v30-values": "tsx src/v30/01-stream-values.ts",
+    "v30-updates": "tsx src/v30/02-stream-updates.ts",
+    "v30-messages": "tsx src/v30/03-stream-messages.ts",
+    "v30-events": "tsx src/v30/04-stream-events.ts",
+    "v30-sse": "tsx src/v30/05-stream-sse.ts"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.45",
@@ -37,9 +42,11 @@
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
     "@langchain/openai": "^1.2.3",
     "dotenv": "^16.6.1",
+    "express": "^4.22.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/express": "^4.17.25",
     "@types/node": "^22.17.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"

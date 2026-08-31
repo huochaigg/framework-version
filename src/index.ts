@@ -25,6 +25,11 @@ V21 · LangChain Fundamentals
   17. pnpm v29-save          V29：写入 PostgreSQL 后退出
   18. pnpm v29-resume        V29：新进程按 thread_id 恢复
   19. pnpm v29-threads       V29：thread 隔离
+  20. pnpm v30-values         V30：streamMode values
+  21. pnpm v30-updates        V30：streamMode updates
+  22. pnpm v30-messages       V30：LLM token 流
+  23. pnpm v30-events         V30：执行事件流
+  24. pnpm v30-sse            V30：Graph Stream → SSE
 
 先复制环境变量：
 

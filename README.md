@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V29**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
+当前做到 **V30**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint，V30 Streaming。没有长期记忆、真实 pgvector、MCP、复杂前端。
 
 ---
 
@@ -93,6 +93,11 @@ LLM_MODEL=qwen-plus
 | 17 | `pnpm v29-save` | `src/v29/02-persistent-save.ts` | 写入 PostgreSQL 后退出 |
 | 18 | `pnpm v29-resume` | `src/v29/03-persistent-resume.ts` | 新进程按 thread_id 恢复 |
 | 19 | `pnpm v29-threads` | `src/v29/04-thread-isolation.ts` | thread 隔离 |
+| 20 | `pnpm v30-values` | `src/v30/01-stream-values.ts` | streamMode values |
+| 21 | `pnpm v30-updates` | `src/v30/02-stream-updates.ts` | streamMode updates |
+| 22 | `pnpm v30-messages` | `src/v30/03-stream-messages.ts` | LLM token 流 |
+| 23 | `pnpm v30-events` | `src/v30/04-stream-events.ts` | 执行事件流 |
+| 24 | `pnpm v30-sse` | `src/v30/05-stream-sse.ts` | Graph Stream → SSE |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -399,6 +404,12 @@ src/
   v29/03-persistent-resume.ts
   v29/04-thread-isolation.ts
   v29/shared.ts              V29 极简 Chat Graph
+  v30/shared.ts              V30 极简 Analyze/Answer Graph
+  v30/01-stream-values.ts
+  v30/02-stream-updates.ts
+  v30/03-stream-messages.ts
+  v30/04-stream-events.ts
+  v30/05-stream-sse.ts
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -424,12 +435,12 @@ src/
 - Retriever 包装成 Tool
 - Web Search fallback / Corrective RAG 外部搜索
 - Self-RAG Token / 多 Agent
-- MCP / Streaming / SSE
+- MCP / 复杂 Streaming 前端
 - time travel
 - Redis Checkpointer / MySQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer，不再扩展 Agent 功能。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE，不再混入 Agent、RAG、Checkpoint。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -909,3 +920,82 @@ pnpm v29-resume
 - Streaming / SSE / React / Docker
 - 两套数据库同步
 - V30
+
+---
+
+## V30 · LangGraph Streaming
+
+一句话：**Model 在流 Token，Graph 在流执行状态，HTTP SSE 只是把这些流传给 Browser。**
+
+这一版拆成多个可单独运行的 Demo。不要一次执行全部。
+
+| 命令 | 文件 | 只学这一件事 |
+| --- | --- | --- |
+| `pnpm v30-values` | `src/v30/01-stream-values.ts` | 每一步之后的完整 State |
+| `pnpm v30-updates` | `src/v30/02-stream-updates.ts` | 这一步改了哪些字段 |
+| `pnpm v30-messages` | `src/v30/03-stream-messages.ts` | 真实 LLM token/chunk |
+| `pnpm v30-events` | `src/v30/04-stream-events.ts` | Graph / Node / Model 执行事件 |
+| `pnpm v30-sse` | `src/v30/05-stream-sse.ts` | 把 Stream 接到 HTTP SSE |
+
+共同 Graph：`START → analyze → generateAnswer → END`。没有 Tool、RAG、Human Approval、PostgreSQL Checkpoint。Node 名不能和 State 字段同名，所以节点叫 `generateAnswer`，字段仍叫 `answer`。
+
+### Streaming 的层次
+
+| 层 | 是什么 | 回答什么问题 |
+| --- | --- | --- |
+| 1. `invoke` | 等全部跑完 | 最终结果是什么 |
+| 2. `values` | 每一步之后的完整 State | State 现在长什么样 |
+| 3. `updates` | 每一步的增量 | 这一步修改了什么 |
+| 4. `messages` / token | LLM 正在生成的内容 | 模型生成了什么 |
+| 5. `events` | Graph / Node / Model 生命周期 | Agent 现在正在干什么 |
+| 6. SSE | HTTP 长连接 | 怎么把上面这些传给浏览器 |
+
+**values = 看完整状态，updates = 看这一步修改了什么。**
+
+**Token Streaming 回答「模型生成了什么」。Event Streaming 回答「整个 Agent 现在正在干什么」。** 所以前端才能显示「正在分析 → 正在生成答案」，而不仅仅是文字一个个出来。
+
+这两层不要混：
+
+- Graph Streaming：执行到哪一步、State 怎么变
+- Model Streaming：某次 LLM 调用正在吐哪些 chunk
+
+### SSE 不是 LangGraph 的功能
+
+SSE 是 Browser 和 Server 之间的传输协议。LangGraph stream 是 Server 内部 Graph 执行过程的数据来源。
+
+```text
+LLM → LangGraph Node → LangGraph Stream → Node Server → SSE → Browser
+```
+
+手写对照（`D:\learn\agent\MyProject\`）：
+
+| 手写 | 对应 |
+| --- | --- |
+| V2 Streaming | LLM Token Streaming |
+| V13 SSE | Server → Browser 数据通道 |
+| V14 Background Run | 更高级的任务状态和断线恢复（本版不做） |
+| V30 | 中间加了 LangGraph，把 Node 等工作流状态也变成可流式事件 |
+
+以前可能只有 token。现在还可以有 node 开始、分析中、生成中、node 结束。SSE 本身没变，变的是数据来源更丰富。
+
+`pnpm v30-sse` 会起一个极简页面：`http://127.0.0.1:3000`  
+也可以：`curl -N "http://127.0.0.1:3000/api/chat/stream?question=LangGraph%20是什么"`
+
+事件只有：`status` / `token` / `done` / `error`。不做自动重连、Last-Event-ID、后台 Run。
+
+### 打断点
+
+1. `v30-values` 的 `for await` 每次收到 State
+2. `v30-updates` 收到某个 Node update
+3. `v30-messages` 收到模型 token chunk
+4. `v30-events` 过滤 `event.event` / `event.name`
+5. `v30-sse` 里 Graph Stream 转成 `res.write()`
+6. 浏览器 EventSource 收到 `token` / `status`
+
+### 这一版明确不做
+
+- Tool Calling / RAG / Human Approval / Checkpoint
+- Redis / 数据库 / BullMQ / Background Run
+- EventSource 自动重连、Last-Event-ID
+- React / 复杂 UI
+- V31
