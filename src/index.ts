@@ -20,6 +20,11 @@ V21 · LangChain Fundamentals
   12. pnpm v26              LangGraph Advanced Agentic RAG
   13. pnpm v27              Advanced RAG：Rerank / Multi Query / HyDE
   14. pnpm v28              LangGraph Human in the Loop：interrupt / resume
+  15. pnpm v29-setup         V29：初始化 PostgreSQL Checkpointer 表
+  16. pnpm v29-memory        V29：内存 Checkpoint 对照
+  17. pnpm v29-save          V29：写入 PostgreSQL 后退出
+  18. pnpm v29-resume        V29：新进程按 thread_id 恢复
+  19. pnpm v29-threads       V29：thread 隔离
 
 先复制环境变量：
 

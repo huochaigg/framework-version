@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop。",
+  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -23,12 +23,18 @@
     "v25": "tsx src/v25/agentic-rag.ts",
     "v26": "tsx src/v26/advanced-agentic-rag.ts",
     "v27": "tsx src/v27/advanced-rag.ts",
-    "v28": "tsx src/v28/human-in-the-loop.ts"
+    "v28": "tsx src/v28/human-in-the-loop.ts",
+    "v29-setup": "tsx src/v29/00-setup.ts",
+    "v29-memory": "tsx src/v29/01-memory-checkpoint.ts",
+    "v29-save": "tsx src/v29/02-persistent-save.ts",
+    "v29-resume": "tsx src/v29/03-persistent-resume.ts",
+    "v29-threads": "tsx src/v29/04-thread-isolation.ts"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.45",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^1.4.12",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
     "@langchain/openai": "^1.2.3",
     "dotenv": "^16.6.1",
     "zod": "^3.25.76"

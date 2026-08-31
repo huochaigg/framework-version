@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V28**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
+当前做到 **V29**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
 
 ---
 
@@ -64,7 +64,7 @@ LLM_MODEL=qwen-plus
 
 模型初始化只放在 `src/config/llm.ts`。每个 Demo 都复用它。
 
-如果你已经跑过手写项目 `D:\learn\agent\MyProject\`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 以后再填 `EMBEDDING_*`。
+如果你已经跑过手写项目 `D:\learn\agent\MyProject\`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 以后再填 `EMBEDDING_*`。跑 V29 的 PostgreSQL Demo 再填 `POSTGRES_URL`。
 
 ---
 
@@ -88,6 +88,11 @@ LLM_MODEL=qwen-plus
 | 12 | `pnpm v26` | `src/v26/advanced-agentic-rag.ts` | Grade + Rewrite 循环 |
 | 13 | `pnpm v27` | `src/v27/advanced-rag.ts` | Rerank / Multi Query / HyDE |
 | 14 | `pnpm v28` | `src/v28/human-in-the-loop.ts` | interrupt / resume / 人工确认 |
+| 15 | `pnpm v29-setup` | `src/v29/00-setup.ts` | 初始化 PostgreSQL Checkpointer 表 |
+| 16 | `pnpm v29-memory` | `src/v29/01-memory-checkpoint.ts` | 内存 Checkpoint 对照 |
+| 17 | `pnpm v29-save` | `src/v29/02-persistent-save.ts` | 写入 PostgreSQL 后退出 |
+| 18 | `pnpm v29-resume` | `src/v29/03-persistent-resume.ts` | 新进程按 thread_id 恢复 |
+| 19 | `pnpm v29-threads` | `src/v29/04-thread-isolation.ts` | thread 隔离 |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -388,6 +393,12 @@ src/
   v26/advanced-agentic-rag.ts V26 Advanced Agentic RAG
   v27/advanced-rag.ts        V27 Advanced RAG
   v28/human-in-the-loop.ts   V28 Human in the Loop
+  v29/00-setup.ts            V29 初始化 Checkpointer 表
+  v29/01-memory-checkpoint.ts
+  v29/02-persistent-save.ts
+  v29/03-persistent-resume.ts
+  v29/04-thread-isolation.ts
+  v29/shared.ts              V29 极简 Chat Graph
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -415,10 +426,10 @@ src/
 - Self-RAG Token / 多 Agent
 - MCP / Streaming / SSE
 - time travel
-- Redis / MySQL / PostgreSQL / BullMQ
+- Redis Checkpointer / MySQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume，不再扩展 RAG，也不做 Multi-Agent。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer，不再扩展 Agent 功能。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -780,3 +791,121 @@ START → callModel → routeTools
 - token streaming / SSE / React
 - 数据库 Checkpointer
 - V29
+
+---
+
+## V29 · Persistence / Production Checkpoint
+
+一句话：**V24 的 MemorySaver 只适合当前进程里的 Demo。真实 Human in the Loop、长任务、多轮 Agent，通常需要把 Graph State 持久化到外部存储，服务重启后还能按 thread_id 恢复。**
+
+这一版拆成多个可单独运行的 Demo，方便打断点，不要一次执行到底。
+
+| 命令 | 文件 | 只学这一件事 |
+| --- | --- | --- |
+| `pnpm v29-setup` | `src/v29/00-setup.ts` | 官方 `setup()` 建表 |
+| `pnpm v29-memory` | `src/v29/01-memory-checkpoint.ts` | 内存 Checkpointer 对照 |
+| `pnpm v29-save` | `src/v29/02-persistent-save.ts` | 写入 PostgreSQL 后进程退出 |
+| `pnpm v29-resume` | `src/v29/03-persistent-resume.ts` | 新进程用同一 thread_id 恢复 |
+| `pnpm v29-threads` | `src/v29/04-thread-isolation.ts` | 多 thread 隔离 |
+
+建议顺序：`v29-memory`（对照）→ `v29-setup` → `v29-save` → 确认进程已退出 → `v29-resume` → `v29-threads`。
+
+Graph 仍然极简：`START → callModel → END`。没有 Tool Calling、没有 RAG、没有人工审批。
+
+### InMemory vs Persistent
+
+| | InMemory（MemorySaver） | Persistent（PostgresSaver） |
+| --- | --- | --- |
+| State 存在哪 | 当前 Node 进程内存 | 外部 PostgreSQL |
+| 进程关闭后 | 丢失 | 还在 |
+| 服务重启 | 无法恢复 | 用相同 thread_id 恢复 |
+| 适合 | Demo、测试 | 长会话、Human in the Loop、长任务恢复 |
+
+生产环境还有 Redis 或其他持久化选择，这一版不展开，只选 PostgreSQL。
+
+### Checkpoint 不只是聊天消息库
+
+LangGraph Checkpoint 保存的是 **Graph State 的快照**，不是一张单纯的 Message 表。
+
+当前 Demo 的 State 主要是 `messages`。以后如果 State 里还有 `pendingApproval`、`currentStep`、`retrievedDocs`、`taskStatus`，它们也会作为工作流状态一起保存。
+
+所以它解决的是 **Graph 恢复**，而不只是「把聊天历史存下来」。这也是 V28 的 interrupt 必须配合 Checkpointer 的原因：暂停时要把整份工作流现场存住。
+
+### 业务 DB 和 Checkpointer 不是互相替代
+
+真实生产项目通常仍然会有自己的业务数据库。
+
+| | 负责什么 |
+| --- | --- |
+| 业务 Conversation / Message 表 | 聊天列表、标题、搜索、审计、运营统计、删除会话、前端消息展示 |
+| LangGraph Checkpointer | Graph 执行状态恢复：messages 以及 pendingApproval 等工作流字段 |
+
+手写 V1～V20（`D:\learn\agent\MyProject\`）常见路径：
+
+```text
+conversationId → MySQL 查询 Messages → 拼 history → 调模型
+```
+
+LangGraph：
+
+```text
+thread_id → Checkpointer → 自动恢复 Graph State
+```
+
+前端如果要查所有会话列表、改标题、删消息，依然可能需要自己的 Conversation / Message 表。这一版不实现两套数据库同步。
+
+thread_id 不是 userId。真实系统里常见映射是：`userId` 代表用户，`conversationId` 代表一条聊天会话，LangGraph 经常可以把 `conversationId` 映射成 `thread_id`。不要写死必须相等。
+
+### PostgreSQL 准备
+
+1. 本机先有 PostgreSQL，并建一个空数据库，例如 `langgraph_learn`。
+2. 在 `.env` 填写（不要写进代码）：
+
+```bash
+POSTGRES_URL=postgresql://用户:密码@127.0.0.1:5432/langgraph_learn
+```
+
+3. 第一次先跑官方初始化，不要自己设计表结构：
+
+```bash
+pnpm v29-setup
+```
+
+`PostgresSaver.setup()` 会创建 / 迁移 Checkpointer 所需的表。表已存在时再跑也安全。
+
+### 最重要的实验
+
+```text
+pnpm v29-save
+  → Graph 执行
+  → PostgreSQL Checkpointer 保存 State
+  → Node 进程退出
+
+pnpm v29-resume
+  → 全新 Node 进程启动
+  → 相同 thread_id = v29-demo-thread
+  → Checkpointer 读取 State
+  → Graph 继续运行
+```
+
+不要用 JS 全局变量、JSON 文件或手动复制 messages 假装恢复。必须是两个独立进程 + 数据库 Checkpointer。
+
+`v29-memory` 证明：同一个进程里 MemorySaver 能恢复。把它关掉再重跑，历史就没了。这就是对照组。
+
+### 打断点
+
+不必跟进官方 `checkpointer.put()` 源码。看输入和恢复结果即可。
+
+1. `v29-memory` 第二轮进入 `callModel` 时的 `messages`
+2. `v29-save` 第一次 `invoke` 前后的 State
+3. `v29-save` 的 `invoke` 返回之后：官方写入已经发生，看 `graph.getState`
+4. `v29-resume` 新进程第一次进入 `callModel` 时的 `messages`，确认小明 / Vue 已在
+5. `v29-threads` 里 `thread-a` / `thread-b` 分别进入模型时的 `messages`，观察隔离
+
+### 这一版明确不做
+
+- Tool Calling / Agentic RAG / Human Approval
+- Redis Checkpointer（只提一句，不实现）
+- Streaming / SSE / React / Docker
+- 两套数据库同步
+- V30
