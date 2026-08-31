@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence，V30 Streaming。",
+  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence，V30 Streaming，V31 MCP + LangGraph。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -33,14 +33,21 @@
     "v30-updates": "tsx src/v30/02-stream-updates.ts",
     "v30-messages": "tsx src/v30/03-stream-messages.ts",
     "v30-events": "tsx src/v30/04-stream-events.ts",
-    "v30-sse": "tsx src/v30/05-stream-sse.ts"
+    "v30-sse": "tsx src/v30/05-stream-sse.ts",
+    "v31-server": "tsx src/v31/01-mcp-server.ts",
+    "v31-client": "tsx src/v31/02-mcp-client.ts",
+    "v31-tools": "tsx src/v31/03-mcp-to-langchain-tools.ts",
+    "v31-agent": "tsx src/v31/04-langgraph-mcp-agent.ts",
+    "v31-multi-server": "tsx src/v31/05-multi-mcp-server.ts"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.45",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^1.4.12",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
+    "@langchain/mcp-adapters": "^1.1.4",
     "@langchain/openai": "^1.2.3",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
     "zod": "^3.25.76"

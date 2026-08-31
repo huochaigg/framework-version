@@ -30,6 +30,11 @@ V21 · LangChain Fundamentals
   22. pnpm v30-messages       V30：LLM token 流
   23. pnpm v30-events         V30：执行事件流
   24. pnpm v30-sse            V30：Graph Stream → SSE
+  25. pnpm v31-server         V31：只启动 MCP Server
+  26. pnpm v31-client         V31：MCP Client listTools / callTool
+  27. pnpm v31-tools          V31：MCP Tool → LangChain Tool
+  28. pnpm v31-agent          V31：LangGraph Agent 调用 MCP Tool
+  29. pnpm v31-multi-server   V31：一个 Agent 同时用两个 MCP Server
 
 先复制环境变量：
 

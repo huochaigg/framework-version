@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V30**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint，V30 Streaming。没有长期记忆、真实 pgvector、MCP、复杂前端。
+当前做到 **V31**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint，V30 Streaming，V31 MCP + LangGraph。没有长期记忆、真实 pgvector、远程 HTTP MCP、复杂前端。
 
 ---
 
@@ -98,6 +98,11 @@ LLM_MODEL=qwen-plus
 | 22 | `pnpm v30-messages` | `src/v30/03-stream-messages.ts` | LLM token 流 |
 | 23 | `pnpm v30-events` | `src/v30/04-stream-events.ts` | 执行事件流 |
 | 24 | `pnpm v30-sse` | `src/v30/05-stream-sse.ts` | Graph Stream → SSE |
+| 25 | `pnpm v31-server` | `src/v31/01-mcp-server.ts` | 只启动 MCP Server |
+| 26 | `pnpm v31-client` | `src/v31/02-mcp-client.ts` | MCP Client：listTools / callTool |
+| 27 | `pnpm v31-tools` | `src/v31/03-mcp-to-langchain-tools.ts` | MCP Tool → LangChain Tool |
+| 28 | `pnpm v31-agent` | `src/v31/04-langgraph-mcp-agent.ts` | LangGraph Agent 调用 MCP Tool |
+| 29 | `pnpm v31-multi-server` | `src/v31/05-multi-mcp-server.ts` | 一个 Agent 同时用两个 MCP Server |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -410,6 +415,14 @@ src/
   v30/03-stream-messages.ts
   v30/04-stream-events.ts
   v30/05-stream-sse.ts
+  v31/shared.ts              V31 共用：stdio 启动参数 / 模拟 Tool 实现
+  v31/01-mcp-server.ts       同时暴露 calculator + getUserInfo
+  v31/02-mcp-client.ts
+  v31/03-mcp-to-langchain-tools.ts
+  v31/04-langgraph-mcp-agent.ts
+  v31/05-multi-mcp-server.ts
+  v31/calculator-server.ts   仅 calculator，给 multi-server 用
+  v31/user-server.ts         仅 getUserInfo，给 multi-server 用
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -435,12 +448,12 @@ src/
 - Retriever 包装成 Tool
 - Web Search fallback / Corrective RAG 外部搜索
 - Self-RAG Token / 多 Agent
-- MCP / 复杂 Streaming 前端
+- 远程 HTTP MCP / OAuth / 复杂 Streaming 前端
 - time travel
 - Redis Checkpointer / MySQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE，不再混入 Agent、RAG、Checkpoint。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE。V31 学习把 MCP Tool 接进 LangGraph Agent。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -999,3 +1012,142 @@ LLM → LangGraph Node → LangGraph Stream → Node Server → SSE → Browser
 - EventSource 自动重连、Last-Event-ID
 - React / 复杂 UI
 - V31
+
+---
+
+## V31 · MCP + LangGraph
+
+一句话：**MCP 不负责 Agent 推理，LangGraph 也不负责提供外部业务能力。MCP 负责「能力怎么标准化暴露和连接」，LangGraph 负责「Agent 什么时候、以什么流程使用这些能力」。**
+
+这一版不从零讲 MCP 协议。手写 V10 已经练过 `connect` / `listTools` / `callTool`。V31 做的是映射：把那套协议接到 LangChain / LangGraph 上。
+
+每个 Demo 只完成一个目标。不要一个命令把 Server、Client、Agent、Multi Server 全部跑一遍。
+
+| 命令 | 文件 | 只学这一件事 |
+| --- | --- | --- |
+| `pnpm v31-server` | `src/v31/01-mcp-server.ts` | 启动 MCP Server，暴露两个 Tool |
+| `pnpm v31-client` | `src/v31/02-mcp-client.ts` | MCP Client 发现并直接调用 Tool |
+| `pnpm v31-tools` | `src/v31/03-mcp-to-langchain-tools.ts` | Adapter 把 MCP Tool 转成 LangChain Tool |
+| `pnpm v31-agent` | `src/v31/04-langgraph-mcp-agent.ts` | LangGraph Agent Loop 调用 MCP Tool |
+| `pnpm v31-multi-server` | `src/v31/05-multi-mcp-server.ts` | 一个 Agent 同时用两个 MCP Server |
+
+`v31-client` 不要自动接着跑 `v31-agent`。`v31-agent` 也不要自动跑 multi-server。
+
+stdio MCP Server 由 Client / Adapter 自动拉起子进程，这是正常的。代码仍然把 Server 和 Client 分成不同文件，方便分别阅读和打断点。
+
+`pnpm v31-server` 只启动 Server，不跑 Client。stdio Server 会等 stdin，看到 `MCP Server started` 后用 Ctrl+C 退出。日志走 stderr，因为 stdout 是协议通道。
+
+### 几个角色
+
+| 角色 | 干什么 | 不干什么 |
+| --- | --- | --- |
+| **MCP Server** | Tool 提供方。对外暴露能力 | 不推理、不跑 Agent Loop |
+| **MCP Client** | Tool 使用方与 Server 的连接层 | 不是 LLM |
+| **MCP Adapter** | 把 MCP Tool 转成 LangChain 能理解的 Tool | 不决定何时调用 |
+| **LangGraph** | 决定什么时候调用这些 Tool，管理 Agent Loop | 不提供外部业务能力 |
+| **LLM** | 决定当前问题是否需要某个 Tool | 不知道背后是不是 MCP |
+
+整体链路：
+
+```text
+LLM → LangGraph → LangChain Tool → MCP Client → MCP Server → JS Function / API / Database
+```
+
+V31 的 calculator 和 getUserInfo 停在「JS Function」。MCP 底下仍然可以去调 REST、数据库、SDK；MCP 本身不是万能 API 替代品。它主要解决的是 **AI 应用与工具 / 上下文之间的标准化连接**。
+
+### 手写 V10 ↔ V31
+
+手写项目：`D:\learn\agent\MyProject\`
+
+| 手写 V10 | V31 |
+| --- | --- |
+| `@modelcontextprotocol/server` + `registerTool` + `serveStdio` | `@modelcontextprotocol/sdk` 的 `McpServer` + `StdioServerTransport` |
+| 自己创建 MCP Client | 官方 `Client` + `StdioClientTransport` |
+| `client.connect()` | 仍然是 `client.connect()` |
+| `client.listTools()` | 仍然是 `client.listTools()` |
+| `client.callTool()` | 仍然是 `client.callTool()` |
+| 自己把 MCP schema 转成 OpenAI `tools`（`toLlmTools`） | `@langchain/mcp-adapters` 的 `getTools()` / `loadMcpTools()` |
+| Agent 自己写 Tool Router，按名字分流 local / MCP | LangGraph `bindTools` + `ToolNode`，MCP Tool 看起来就是普通 Tool |
+
+协议层还在。Adapter 只是帮你把 MCP Tool 转成 LangChain Tool，可以直接塞进 Agent，不必再手写一套 Tool Router。
+
+### 本地 Tool 和 MCP Tool
+
+| | 本地 Tool（V23） | MCP Tool（V31） |
+| --- | --- | --- |
+| 能力写在哪 | 通常和 Agent 同一个项目 / 进程 | 独立 MCP Server 进程 |
+| 怎么接到 Agent | `tool()` 之后 `bindTools` / `ToolNode` | Adapter 转成 LangChain Tool 之后，同样 `bindTools` / `ToolNode` |
+| 模型看到什么 | name + description + schema | 一样 |
+| 模型知不知道 MCP | 不知道 | 也不知道 |
+
+所以模型本身其实不知道这个 Tool 背后是不是 MCP。对它来说都是：有一个名字、一段说明、一份参数 schema、可以被调用。
+
+MCP 的价值：Agent 不必为 GitHub、数据库、文件系统、内部平台分别写一套特殊接入协议。只要能力方提供 MCP Server，Agent 就可以通过统一 MCP Client 接入。
+
+但不要把 MCP 说成「万能 API 替代品」。底层业务能力依然可能调用 REST API、数据库、SDK。MCP 标准化的是 **AI 应用怎么发现和调用这些能力**，不是把所有后端接口都替换掉。
+
+### 五个 Demo 分别在干什么
+
+**1. `v31-server`**
+
+最简单的 MCP Server，两个 Tool：
+
+- `calculator`：输入 `a` / `b` / `operation`（add / subtract / multiply / divide）
+- `getUserInfo`：输入 `userId`，返回模拟数据 `{ name: "Tom", role: "frontend engineer" }`
+
+不接真实用户库，不接 MySQL。只用本地 stdio，避免 HTTP、鉴权、网络干扰。
+
+**2. `v31-client`**
+
+不使用 LangGraph。Client 启动子进程连接 Server，然后 `listTools()` 打印 `calculator`、`getUserInfo`，再手动 `callTool` 一次 `23 * 47`。
+
+重点：MCP Client 不是 LLM，它只是连接、发现、调用。
+
+**3. `v31-tools`**
+
+用官方 `@langchain/mcp-adapters` 的 `MultiServerMCPClient.getTools()`，不要手工再包一遍 schema。打印转换后的 `name` / `description`（不要打印完整 Tool 对象和 Zod 内部结构），然后 `calculator.invoke({ a: 23, b: 47, operation: "multiply" })`。
+
+这一步仍然不让模型调用 Tool。对比上一课：`callTool()` 是 MCP 层；`invoke()` 是适配成 LangChain Tool 之后。
+
+**4. `v31-agent`**
+
+这是 V31 最重要的部分。复用 V23 Agent Loop，但 Tools 来自 MCP Server：
+
+1. 启动时通过 Adapter 获取 MCP Tools
+2. `model.bindTools(mcpTools)`
+3. 同样的 Tools 交给 `ToolNode`
+
+测试：
+
+- `23 * 47 等于多少？` → 模型应调用 MCP 的 `calculator`
+- `查询用户 user-001 的信息。` → 模型应调用 MCP 的 `getUserInfo`
+
+控制台只打印：User、Model 请求哪个 MCP Tool、Tool Result、Final Answer。协议细节回 V10 手写版打断点。
+
+**5. `v31-multi-server`**
+
+两个 Server 即可：Calculator Server 和 User Server。`MultiServerMCPClient` 把两边的 Tool 合成一份。测试问题会让模型分别调用 user MCP 和 calculator MCP。
+
+不做：动态注册中心、MCP Gateway、服务发现、负载均衡、复杂权限。
+
+### 打断点
+
+不必跟进 JSON-RPC 原始包。V31 重心是框架整合。
+
+1. `01-mcp-server.ts`：MCP Server 收到 `calculator` 调用请求
+2. `02-mcp-client.ts`：`listTools()` 返回的位置
+3. `03-mcp-to-langchain-tools.ts`：Adapter 转成 LangChain Tools 之后
+4. `04-langgraph-mcp-agent.ts`：`callModel` 返回 `AIMessage.tool_calls`
+5. `04-langgraph-mcp-agent.ts`：`ToolNode` 准备执行 MCP Tool
+6. `01-mcp-server.ts`：Server 执行 Tool 并返回结果
+7. `04-langgraph-mcp-agent.ts`：第二次 `callModel` 时 messages 里已有 `ToolMessage`
+
+### 这一版明确不做
+
+- MCP Resource / Prompt / Sampling
+- 远程 HTTP MCP、OAuth、复杂鉴权
+- RAG、Checkpoint、Human in the Loop、Streaming
+- Server 动态注册、Gateway、服务发现、负载均衡
+- V32
+
+做完 V31，应该能看到一个 MCP Server，并知道怎么把它接进 LangChain / LangGraph，而不是重新为它手写一套 Tool Router。
