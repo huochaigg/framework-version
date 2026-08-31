@@ -19,6 +19,7 @@ V21 · LangChain Fundamentals
   11. pnpm v25              LangGraph Agentic RAG
   12. pnpm v26              LangGraph Advanced Agentic RAG
   13. pnpm v27              Advanced RAG：Rerank / Multi Query / HyDE
+  14. pnpm v28              LangGraph Human in the Loop：interrupt / resume
 
 先复制环境变量：
 

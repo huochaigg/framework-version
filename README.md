@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V27**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE）。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
+当前做到 **V28**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop。没有长期记忆、真实 pgvector、MCP、Streaming、前端。
 
 ---
 
@@ -87,6 +87,7 @@ LLM_MODEL=qwen-plus
 | 11 | `pnpm v25` | `src/v25/agentic-rag.ts` | 普通 RAG vs Agentic RAG |
 | 12 | `pnpm v26` | `src/v26/advanced-agentic-rag.ts` | Grade + Rewrite 循环 |
 | 13 | `pnpm v27` | `src/v27/advanced-rag.ts` | Rerank / Multi Query / HyDE |
+| 14 | `pnpm v28` | `src/v28/human-in-the-loop.ts` | interrupt / resume / 人工确认 |
 
 看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
 
@@ -386,6 +387,7 @@ src/
   v25/agentic-rag.ts         V25 Agentic RAG
   v26/advanced-agentic-rag.ts V26 Advanced Agentic RAG
   v27/advanced-rag.ts        V27 Advanced RAG
+  v28/human-in-the-loop.ts   V28 Human in the Loop
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -395,6 +397,7 @@ src/
   config/embedding.ts
   tools/calculator.ts
   tools/current-time.ts
+  tools/transfer-money.ts
   index.ts                   打印学习顺序
 ```
 
@@ -411,11 +414,11 @@ src/
 - Web Search fallback / Corrective RAG 外部搜索
 - Self-RAG Token / 多 Agent
 - MCP / Streaming / SSE
-- interrupt / resume / time travel
+- time travel
 - Redis / MySQL / PostgreSQL / BullMQ
 - React UI
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE，不再扩展 Agent Loop。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume，不再扩展 RAG，也不做 Multi-Agent。知识库仍是内存文本，不是生产向量库。
 
 ---
 
@@ -689,3 +692,91 @@ HyDE 不是先 embedding 用户问题，而是先让 LLM 写一段「假设会�
 - Agent Loop / Checkpoint / Human in the Loop
 - React / SSE
 - V28
+
+---
+
+## V28 · LangGraph Human in the Loop
+
+一句话：**LangGraph Human in the Loop 的价值不是弹确认框，而是让一个有状态的 Agent 工作流可以安全暂停、保存现场、等待外部决策，然后从原来的位置继续。**
+
+运行：`pnpm v28`
+
+场景 2、3 会在命令行等你输入 `yes` 或 `no`。这只是 Demo 的输入方式。真正暂停 Graph 的是 `interrupt()`，真正恢复的是 `Command({ resume })`。
+
+### 普通 Tool Calling vs Human in the Loop
+
+| | 谁决定调用 | 谁执行 |
+| --- | --- | --- |
+| 普通 Tool Calling（V23） | Agent 自动决定 | 自动执行 |
+| Human in the Loop（V28） | Agent 决定调用 | Graph 暂停 → 人类确认 → Graph 恢复 → 再执行 |
+
+V7 手写 Agent Loop 是模型自动调用 Tool；V28 LangGraph 在这个 Loop 中加入了「暂停等待人工决策」的能力。
+
+对照手写：
+
+```text
+if (dangerousTool) {
+  const approved = await askUser();
+  if (approved) executeTool();
+}
+```
+
+LangGraph：`Conditional Edge / Router → interrupt → checkpoint → Command({ resume }) → 继续 Graph`。
+
+`readline` 只是当前 Node.js 进程阻塞等输入。`interrupt` 是工作流把 State 存进 Checkpointer，之后还可以用同一个 `thread_id` 恢复。即使这次 Demo 用命令行输入，也必须走 LangGraph 的暂停 / 恢复，不能拿 readline 假装 Human in the Loop。
+
+### 三个核心概念
+
+| 概念 | 含义 |
+| --- | --- |
+| **interrupt** | 暂停。Graph 执行到这里停住，把 payload 交给外部 |
+| **checkpoint** | 保存暂停时的 State。没有 Checkpointer，暂停后无法恢复 |
+| **resume** | 带着人工输入继续执行。`Command({ resume: "yes" / "no" })` 的值会变成 `interrupt()` 的返回值 |
+
+**thread_id 为什么重要：** resume 时必须找到原来那条 Graph 线程的 State，而不是新建一个流程。换一个 `thread_id` 等于从头开始，刚才的转账确认就丢了。
+
+### 为什么生产环境需要它
+
+LLM 可以负责「建议做什么」，但真正有副作用的操作不一定应该由模型完全自动执行。例如：转账、删除数据、发邮件、发布内容、退款、修改权限、执行生产环境操作。
+
+这一版用 `transferMoney` 当高风险 Tool（只模拟，不调银行接口），用 `calculator` 当普通 Tool 对照。
+
+### 流程
+
+```text
+START → callModel → routeTools
+  calculator     → tools（自动执行）→ callModel → END
+  transferMoney  → humanApproval
+                   interrupt 暂停
+                   人工输入 yes / no
+                   Command({ resume }) 恢复
+                   yes → executeTransfer → callModel → END
+                   no  → rejectTransfer  → callModel → END
+```
+
+只拦截 `transferMoney`，不要给所有 Tool 都加确认。
+
+### 测试场景
+
+1. `23 * 47 等于多少？` → calculator 自动执行 → 最终回答
+2. `帮我给 account-001 转 100 元。` → interrupt → 输入 `yes` → 模拟转账 → 回答已完成
+3. 同样转账请求 → interrupt → 输入 `no` → 不执行 Tool → 回答已取消
+
+### 打断点
+
+1. `callModel` 返回 AIMessage，出现 `transferMoney` tool_call
+2. `routeTools` 判断这是高风险 Tool
+3. `interrupt()` 前后：这里还没有执行转账
+4. 第一次 `graph.invoke` 返回 `__interrupt__`
+5. `new Command({ resume })` 恢复 Graph
+6. resume 后重新进入 `humanApproval`，看人工输入如何变成 `interrupt()` 的返回值
+7. `afterApproval`：yes 走 `executeTransfer`，no 走 `rejectTransfer`
+
+### 这一版明确不做
+
+- 继续扩展 RAG / Multi-Agent
+- 第三方银行接口、真实转账
+- 复杂权限系统 / 策略引擎
+- token streaming / SSE / React
+- 数据库 Checkpointer
+- V29
