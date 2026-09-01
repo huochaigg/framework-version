@@ -35,6 +35,11 @@ V21 · LangChain Fundamentals
   27. pnpm v31-tools          V31：MCP Tool → LangChain Tool
   28. pnpm v31-agent          V31：LangGraph Agent 调用 MCP Tool
   29. pnpm v31-multi-server   V31：一个 Agent 同时用两个 MCP Server
+  30. pnpm v32-mcp-server     V32：只启动 Developer MCP Server
+  31. pnpm v32-agent-cli      V32：CLI 跑同一套 Agent Graph
+  32. pnpm v32-checkpoint-test V32：同一 conversationId 持久化
+  33. pnpm v32-stream-test    V32：Graph Streaming，不启动前端
+  34. pnpm v32-server         V32：HTTP API + 极简页面
 
 先复制环境变量：
 

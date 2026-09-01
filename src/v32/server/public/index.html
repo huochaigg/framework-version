@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>V32 AI Developer Assistant</title>
+<style>
+  body { font-family: sans-serif; max-width: 720px; margin: 24px auto; }
+  label { display: block; margin: 8px 0 4px; }
+  input, textarea { width: 100%; box-sizing: border-box; }
+  textarea { height: 72px; }
+  button { margin-top: 8px; }
+  #status { color: #555; min-height: 1.4em; }
+  #log { white-space: pre-wrap; border: 1px solid #ddd; padding: 12px; min-height: 240px; }
+</style>
+<h1>AI Developer Assistant</h1>
+<label>conversationId</label>
+<input id="conversationId" value="v32-web-demo" />
+<label>message</label>
+<textarea id="message">什么是 LangGraph Checkpoint？</textarea>
+<button id="send">发送</button>
+<p id="status">status: idle</p>
+<pre id="log"></pre>
+<script>
+  const statusEl = document.getElementById("status");
+  const logEl = document.getElementById("log");
+  const conversationEl = document.getElementById("conversationId");
+  const messageEl = document.getElementById("message");
+  let source;
+
+  document.getElementById("send").onclick = () => {
+    if (source) source.close();
+    const conversationId = conversationEl.value.trim() || "v32-web-demo";
+    const message = messageEl.value.trim();
+    if (!message) return;
+
+    logEl.textContent += "User: " + message + "\nAssistant: ";
+    statusEl.textContent = "status: thinking";
+
+    source = new EventSource(
+      "/api/chat/stream?conversationId=" + encodeURIComponent(conversationId) +
+      "&message=" + encodeURIComponent(message)
+    );
+
+    source.addEventListener("status", (e) => {
+      statusEl.textContent = "status: " + JSON.parse(e.data).status;
+    });
+    source.addEventListener("tool", (e) => {
+      statusEl.textContent = "status: tool " + JSON.parse(e.data).name;
+    });
+    source.addEventListener("token", (e) => {
+      logEl.textContent += JSON.parse(e.data).token;
+    });
+    source.addEventListener("done", () => {
+      logEl.textContent += "\n\n";
+      statusEl.textContent = "status: idle";
+      source.close();
+    });
+    source.addEventListener("error", (e) => {
+      if (!e.data) return;
+      logEl.textContent += "\n[error] " + JSON.parse(e.data).message + "\n\n";
+      statusEl.textContent = "status: error";
+      source.close();
+    });
+  };
+</script>

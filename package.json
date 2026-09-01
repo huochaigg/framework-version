@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG，V28 Human in the Loop，V29 Persistence，V30 Streaming，V31 MCP + LangGraph。",
+  "description": "LangChain / LangGraph 学习项目。V21～V31 概念 Demo，V32 Complete LangGraph Agent Project。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -38,7 +38,12 @@
     "v31-client": "tsx src/v31/02-mcp-client.ts",
     "v31-tools": "tsx src/v31/03-mcp-to-langchain-tools.ts",
     "v31-agent": "tsx src/v31/04-langgraph-mcp-agent.ts",
-    "v31-multi-server": "tsx src/v31/05-multi-mcp-server.ts"
+    "v31-multi-server": "tsx src/v31/05-multi-mcp-server.ts",
+    "v32-mcp-server": "tsx src/v32/mcp/server.ts",
+    "v32-agent-cli": "tsx src/v32/cli.ts",
+    "v32-server": "tsx src/v32/index.ts",
+    "v32-checkpoint-test": "tsx src/v32/checkpoint-test.ts",
+    "v32-stream-test": "tsx src/v32/stream-test.ts"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.45",

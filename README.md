@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V31**。V21 组件，V22 Graph，V23 Agent Loop，V24 Memory + Checkpoint，V25 Agentic RAG，V26 Advanced Agentic RAG，V27 Advanced RAG（Rerank / Multi Query / HyDE），V28 Human in the Loop，V29 Persistence / Production Checkpoint，V30 Streaming，V31 MCP + LangGraph。没有长期记忆、真实 pgvector、远程 HTTP MCP、复杂前端。
+当前做到 **V32**。V21～V31 是概念 Demo。V32 是完整小型项目：AI Developer Assistant。没有长期记忆画像、真实 pgvector、远程 HTTP MCP、React 企业后台。
 
 ---
 
@@ -103,8 +103,13 @@ LLM_MODEL=qwen-plus
 | 27 | `pnpm v31-tools` | `src/v31/03-mcp-to-langchain-tools.ts` | MCP Tool → LangChain Tool |
 | 28 | `pnpm v31-agent` | `src/v31/04-langgraph-mcp-agent.ts` | LangGraph Agent 调用 MCP Tool |
 | 29 | `pnpm v31-multi-server` | `src/v31/05-multi-mcp-server.ts` | 一个 Agent 同时用两个 MCP Server |
+| 30 | `pnpm v32-mcp-server` | `src/v32/mcp/server.ts` | V32：只启动 Developer MCP Server |
+| 31 | `pnpm v32-agent-cli` | `src/v32/cli.ts` | V32：CLI 跑同一套 Agent Graph |
+| 32 | `pnpm v32-checkpoint-test` | `src/v32/checkpoint-test.ts` | V32：同一 conversationId 持久化 |
+| 33 | `pnpm v32-stream-test` | `src/v32/stream-test.ts` | V32：Graph Streaming |
+| 34 | `pnpm v32-server` | `src/v32/index.ts` | V32：HTTP API + 极简页面 |
 
-看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。
+看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。V32 起是完整项目，入口看 README 的 V32 章节。
 
 ---
 
@@ -423,6 +428,22 @@ src/
   v31/05-multi-mcp-server.ts
   v31/calculator-server.ts   仅 calculator，给 multi-server 用
   v31/user-server.ts         仅 getUserInfo，给 multi-server 用
+  v32/config.ts
+  v32/agent/state.ts
+  v32/agent/graph.ts         唯一的 Agent Graph
+  v32/agent/trace.ts
+  v32/tools/                 calculator / current-time / runtime-info / knowledge
+  v32/mcp/server.ts
+  v32/mcp/client.ts
+  v32/rag/documents.ts
+  v32/rag/vector-store.ts
+  v32/server/app.ts
+  v32/server/events.ts
+  v32/server/public/index.html
+  v32/cli.ts
+  v32/checkpoint-test.ts
+  v32/stream-test.ts
+  v32/index.ts               HTTP 入口
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -445,15 +466,15 @@ src/
 - 长期用户记忆 / 跨 thread 画像
 - 真实 PostgreSQL + pgvector
 - 第三方 Rerank API（Cohere / Jina）、Elasticsearch、BM25 / Hybrid Search
-- Retriever 包装成 Tool
 - Web Search fallback / Corrective RAG 外部搜索
 - Self-RAG Token / 多 Agent
-- 远程 HTTP MCP / OAuth / 复杂 Streaming 前端
+- 远程 HTTP MCP / OAuth
 - time travel
 - Redis Checkpointer / MySQL / BullMQ
-- React UI
+- React UI / 登录 / 企业后台
+- V32 默认不启用 Human Approval、Multi Query、HyDE、Rerank
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE。V31 学习把 MCP Tool 接进 LangGraph Agent。知识库仍是内存文本，不是生产向量库。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE。V31 学习把 MCP Tool 接进 LangGraph Agent。V32 把核心能力组合成一个可运行的小型 Agent 项目。知识库仍是内存向量库，不是生产 pgvector。
 
 ---
 
@@ -1151,3 +1172,168 @@ MCP 的价值：Agent 不必为 GitHub、数据库、文件系统、内部平台
 - V32
 
 做完 V31，应该能看到一个 MCP Server，并知道怎么把它接进 LangChain / LangGraph，而不是重新为它手写一套 Tool Router。
+
+---
+
+## V32 · Complete LangGraph Agent Project
+
+**LangChain 提供能力组件，LangGraph 负责组织 Agent 的状态和流程，MCP 提供外部工具标准，Checkpointer 保存运行状态，SSE 把 Agent 执行过程传给前端。**
+
+V32 不再为某个 API 单独写演示。它回答的是：如果现在真正做一个 LangGraph Agent 项目，代码怎么组织。
+
+主题：面向程序员的 **AI Developer Assistant**。单 Agent + 多能力。底层那些手写过的事情没有消失，只是被收成标准组件。
+
+### 1. 这个 Agent 能做什么
+
+- 普通聊天，能直接答的问题不调工具
+- 开发知识库 RAG（`searchKnowledgeBase`）
+- 本地 Tool：`calculator`、`getCurrentTime`、`getRuntimeInfo`
+- MCP Tool：`getProjectInfo`（模拟项目资料）
+- 多轮对话：PostgreSQL Checkpoint，`conversationId` → `thread_id`
+- Streaming：status + token（以及 tool 开始事件）
+- HTTP API + 极简 HTML 页面，用来验证主链路
+
+不默认经过：Multi Query、HyDE、Rerank、Human Approval、Multi-Agent。知识库很小，Baseline Retriever 够用。高风险 Tool 以后可以在 Tool 执行前插入 `interrupt`，不必现在塞进主流程。
+
+最小测试：
+
+| 问题 | 预期 |
+| --- | --- |
+| 什么是 LangGraph Checkpoint？ | 可能调用 `searchKnowledgeBase` |
+| 23 * 47 等于多少？ | `calculator` |
+| 现在东京几点？ | `getCurrentTime` |
+| 查询 demo-project 项目信息 | MCP `getProjectInfo` |
+| 你好，介绍一下你自己 | 直接回答 |
+| 先说「我主要用 Vue。」再问「我刚才说我主要用什么框架？」 | Checkpoint 恢复 Vue |
+
+### 2. 整体架构
+
+```text
+Browser / CLI
+    → Express  POST /api/chat  或  GET /api/chat/stream
+    → LangGraph Agent（createAgentGraph）
+        → Model.bindTools(allTools)
+        → Local Tools / RAG Tool / MCP Tools
+        → PostgreSQL Checkpointer
+    → Graph Stream → SSE → Client
+```
+
+更细一点：
+
+```text
+Client → Express → LangGraph Agent
+                 → Model / Local Tools / RAG Tool / MCP Tools
+                 → PostgreSQL Checkpoint
+                 → Stream → SSE → Client
+```
+
+### 3. Agent Graph 流程
+
+仍然是 V23 已经理解的 Loop，没有另发明一套：
+
+```text
+START → callModel
+          ├─ 有 tool_calls → tools（ToolNode）→ callModel
+          └─ 没有 tool_calls → END
+```
+
+State 核心只有 `messages`。`conversationId` 在 API 层映射成 `thread_id`，这只是当前项目的简单映射，不是 LangGraph 强制要求。
+
+RAG 不再使用 V25 那种固定 `decideRoute → retrieve` Node。检索本身是 Tool，模型自己判断要不要调用。
+
+### 4. Tool 来源
+
+对 Agent 来说都是「可以选择调用的能力」：
+
+| 来源 | Tool | 实现位置 |
+| --- | --- | --- |
+| 本地 JS | calculator / getCurrentTime / getRuntimeInfo | `src/v32/tools/` |
+| RAG | searchKnowledgeBase | VectorStore + Tool 包装 |
+| MCP | getProjectInfo | Developer MCP Server → Adapter |
+
+合并方式：`allTools = [...localTools, knowledgeTool, ...mcpTools]`，然后同时 `bindTools(allTools)` 和 `new ToolNode(allTools)`。
+
+本地 Tool 和 MCP Tool 在 Graph 上层没有区别。模型也不知道某个 Tool 背后是不是 MCP。
+
+MCP 不是万能 API 替代品。它标准化的是 AI 应用如何发现和调用能力；`getProjectInfo` 底下仍然只是一份模拟 JS 数据。
+
+### 5. Memory / Checkpoint
+
+使用 PostgreSQL Checkpointer，不用 InMemory 当最终方案。不要自己再维护一份内存 `messages` 数组。
+
+同一 `conversationId` 连续聊天会带上历史。Node 重启后，只要 `POSTGRES_URL` 和 `conversationId` 不变，就能恢复。先确保数据库可用；表会在 `createAgentRuntime()` 里调用官方 `setup()`。
+
+### 6. Streaming
+
+只实现一种：`GET /api/chat/stream` + EventSource。
+
+服务端过滤 LangGraph `streamEvents`，只发给前端：
+
+- `status`：thinking / tool_calling / retrieving / generating
+- `tool`：例如 `{ name: "calculator" }`
+- `token`：最终回答的文本 chunk
+- `done` / `error`
+
+链路：LangGraph Event/Message Stream → Express → SSE → Client。
+
+`POST /api/chat` 用 `invoke` 直接返回最终 `answer`，方便测通。
+
+### 7. 如何运行
+
+环境变量：`.env` 里的 `LLM_*`、`EMBEDDING_*`、`POSTGRES_URL`。这些脚本都复用同一份 `createAgentRuntime()` / `createAgentGraph()`，不是五套重复 Graph。
+
+```bash
+pnpm v32-mcp-server          # 只启动 MCP Server，方便打断点。stdio 等 stdin，Ctrl+C 退出
+pnpm v32-agent-cli           # 固定问题测 Tool / RAG / MCP
+pnpm v32-checkpoint-test     # 同一 conversationId 两轮，看 Vue 是否还在
+pnpm v32-stream-test         # 只看 status / tool / token，不启动前端
+pnpm v32-server              # http://127.0.0.1:3200
+```
+
+端口可用 `V32_PORT` 覆盖。页面只有 conversationId、消息框、发送、消息列表、当前状态。
+
+`curl` 示例：
+
+```bash
+curl -X POST http://127.0.0.1:3200/api/chat -H "Content-Type: application/json" -d "{\"conversationId\":\"demo\",\"message\":\"你好，介绍一下你自己。\"}"
+curl -N "http://127.0.0.1:3200/api/chat/stream?conversationId=demo&message=23%20*%2047%20等于多少？"
+```
+
+### 8. 手写 V1～V20 和框架 V21～V32 的最终映射
+
+参考项目：`D:\learn\agent\MyProject\`（只读）。
+
+| 手写 | 框架现在放在哪 |
+| --- | --- |
+| V1 / V2 Model Call | LangChain `ChatOpenAI`（`src/config/llm.ts`） |
+| V7 Agent Loop | LangGraph Graph + Conditional Edge（`src/v32/agent/graph.ts`） |
+| V6 / V11 Tool Router | `bindTools` + `ToolNode` |
+| V4 / 会话 messages 数组 | Checkpointer + `thread_id` |
+| V17 Vector RAG | `MemoryVectorStore` + `searchKnowledgeBase` Tool |
+| V10 MCP Client | `@langchain/mcp-adapters`（`src/v32/mcp/client.ts`） |
+| V13 SSE | Graph `streamEvents` + Express SSE |
+| V14 Background Run | 本项目不做 |
+| V20 生产部署 | 本项目不追求；Checkpointer 用 PostgreSQL 只为把持久化跑通 |
+
+底层这些事情没有消失，只是框架把它们抽象成了标准组件。
+
+### 最值得打断点
+
+1. HTTP/CLI 用户输入刚要进入 `graph.invoke` / `streamEvents`（`server/app.ts`、`cli.ts`）
+2. 第一次进入 `callModel` 时的 `messages`
+3. 模型返回 `AIMessage.tool_calls`
+4. Tool Node 真正确定执行哪个 Tool
+5. RAG Tool 里 VectorStore 返回 Documents（`tools/knowledge.ts`）
+6. MCP Tool：`getProjectInfo` 进入 ToolNode 之后，Client 向 Server 请求（`mcp/server.ts` 的 handler）
+7. ToolMessage 回到第二次 `callModel` 时的 `messages`
+8. Checkpointer 用 `conversationId` / `thread_id` 恢复 State（`prepareTurn` / `checkpoint-test.ts`）
+9. Graph Stream 转成 SSE（`server/app.ts` 的 `writeSse`）
+
+### 这一版明确不做
+
+- Human in the Loop / Multi Query / HyDE / Rerank
+- Multi-Agent
+- 远程 HTTP MCP、OAuth、pgvector
+- React、登录、SaaS
+- V33
+
