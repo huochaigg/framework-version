@@ -40,6 +40,12 @@ V21 · LangChain Fundamentals
   32. pnpm v32-checkpoint-test V32：同一 conversationId 持久化
   33. pnpm v32-stream-test    V32：Graph Streaming，不启动前端
   34. pnpm v32-server         V32：HTTP API + 极简页面
+  35. pnpm v33-basic-trace    V33：一次 model.invoke 的 Run
+  36. pnpm v33-graph-trace    V33：Graph → Node → Model 树
+  37. pnpm v33-tool-trace     V33：Model → Tool → Model
+  38. pnpm v33-rag-trace      V33：RAG 检索链路
+  39. pnpm v33-error-trace    V33：错误落在哪个 Run
+  40. pnpm v33-v32-trace      V33：观察 V32 完整 Agent
 
 先复制环境变量：
 

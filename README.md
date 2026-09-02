@@ -6,7 +6,7 @@
 
 本仓库是全新独立项目。**不要改原来的手写代码。** 参考项目只用于对照，新代码只写在本仓库。
 
-当前做到 **V32**。V21～V31 是概念 Demo。V32 是完整小型项目：AI Developer Assistant。没有长期记忆画像、真实 pgvector、远程 HTTP MCP、React 企业后台。
+当前做到 **V33**。V21～V31 是概念 Demo。V32 是完整小型项目：AI Developer Assistant。V33 只观察它：LangSmith Trace。没有 Evaluation、自动评分、生产告警。
 
 ---
 
@@ -64,7 +64,7 @@ LLM_MODEL=qwen-plus
 
 模型初始化只放在 `src/config/llm.ts`。每个 Demo 都复用它。
 
-如果你已经跑过手写项目 `D:\learn\agent\MyProject\`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 以后再填 `EMBEDDING_*`。跑 V29 的 PostgreSQL Demo 再填 `POSTGRES_URL`。
+如果你已经跑过手写项目 `D:\learn\agent\MyProject\`，可以把那边的 `DEEPSEEK_API_KEY` 填到 `LLM_API_KEY`，`LLM_BASE_URL` 用 `https://api.deepseek.com`，`LLM_MODEL` 用 `deepseek-chat`。跑 V25 以后再填 `EMBEDDING_*`。跑 V29 的 PostgreSQL Demo 再填 `POSTGRES_URL`。跑 V33 再填 `LANGSMITH_TRACING` / `LANGSMITH_API_KEY`。
 
 ---
 
@@ -108,8 +108,14 @@ LLM_MODEL=qwen-plus
 | 32 | `pnpm v32-checkpoint-test` | `src/v32/checkpoint-test.ts` | V32：同一 conversationId 持久化 |
 | 33 | `pnpm v32-stream-test` | `src/v32/stream-test.ts` | V32：Graph Streaming |
 | 34 | `pnpm v32-server` | `src/v32/index.ts` | V32：HTTP API + 极简页面 |
+| 35 | `pnpm v33-basic-trace` | `src/v33/01-basic-trace.ts` | 一次 model.invoke 的 Run |
+| 36 | `pnpm v33-graph-trace` | `src/v33/02-graph-trace.ts` | Graph → Node → Model 树 |
+| 37 | `pnpm v33-tool-trace` | `src/v33/03-tool-trace.ts` | Model → Tool → Model |
+| 38 | `pnpm v33-rag-trace` | `src/v33/04-rag-trace.ts` | RAG 检索链路 |
+| 39 | `pnpm v33-error-trace` | `src/v33/05-error-trace.ts` | 错误落在哪个 Run |
+| 40 | `pnpm v33-v32-trace` | `src/v33/06-v32-agent-trace.ts` | 观察 V32 完整 Agent |
 
-看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。V32 起是完整项目，入口看 README 的 V32 章节。
+看完目录后，先读 `src/config/llm.ts`，再按上面顺序打开 Demo。V32 起是完整项目，入口看 README 的 V32 章节。V33 看 LangSmith 章节。
 
 ---
 
@@ -444,6 +450,13 @@ src/
   v32/checkpoint-test.ts
   v32/stream-test.ts
   v32/index.ts               HTTP 入口
+  v33/shared.ts              LangSmith 环境检查 / tags
+  v33/01-basic-trace.ts
+  v33/02-graph-trace.ts
+  v33/03-tool-trace.ts
+  v33/04-rag-trace.ts
+  v33/05-error-trace.ts
+  v33/06-v32-agent-trace.ts
   rag/knowledge.ts
   rag/store.ts
   rag/rerank.ts
@@ -474,7 +487,7 @@ src/
 - React UI / 登录 / 企业后台
 - V32 默认不启用 Human Approval、Multi Query、HyDE、Rerank
 
-V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE。V31 学习把 MCP Tool 接进 LangGraph Agent。V32 把核心能力组合成一个可运行的小型 Agent 项目。知识库仍是内存向量库，不是生产 pgvector。
+V25 只做到「是否检索」。V26 加上 Grade + Query Rewrite 有限循环。V27 学习 Rerank / Multi Query / HyDE。V28 学习 interrupt / resume。V29 学习 PostgreSQL Checkpointer。V30 学习 Streaming / SSE。V31 学习把 MCP Tool 接进 LangGraph Agent。V32 把核心能力组合成一个可运行的小型 Agent 项目。V33 学习用 LangSmith 看一次请求从开始到结束经历了什么。知识库仍是内存向量库，不是生产 pgvector。
 
 ---
 
@@ -1336,4 +1349,169 @@ curl -N "http://127.0.0.1:3200/api/chat/stream?conversationId=demo&message=23%20
 - 远程 HTTP MCP、OAuth、pgvector
 - React、登录、SaaS
 - V33
+
+---
+
+## V33 · LangSmith Observability
+
+**以前我通过 console 和断点看某一时刻发生了什么，LangSmith Trace 让我看到一次 Agent 请求从开始到结束到底经历了什么。**
+
+LangSmith 不是 Agent 框架，也不是模型。它是用来观察、调试、评估 LLM / Chain / LangGraph 执行过程的平台。V32 已经把 Agent 做完了，V33 不再堆能力，只研究「如何观察它」。
+
+手写项目里排查主要靠 console、错误日志、数据库状态。LangSmith 更偏 LLM 应用专用 Trace，能把 Model、Messages、Tool、Retriever、Graph 串成完整链路。它**不能替代**所有日志 / Sentry / APM。生产环境通常还要同时有应用日志、Sentry/APM、数据库监控。LangSmith 重点解决 **LLM / Agent 调用链可观测性**。
+
+### 最少配置
+
+1. 打开 [smith.langchain.com](https://smith.langchain.com) 注册并创建 API Key
+2. 复制 `.env.example` 为 `.env`，填入：
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=你的key
+LANGSMITH_PROJECT=agent-framework-learning
+```
+
+不要把真实 Key 写进 README 或源码。没配 Key 时程序会给出清晰提示。非美国区再设 `LANGSMITH_ENDPOINT`。打开 tracing 后，LangChain / LangGraph 会自动上报，不必手写复杂 callback。
+
+### 三个概念
+
+| 概念 | 是什么 |
+| --- | --- |
+| **Project** | 一组 Trace 的集合，例如当前开发项目 `agent-framework-learning` |
+| **Trace** | 一次完整用户请求的调用链 |
+| **Run** | Trace 里某一个执行单元：Model、Tool、Retriever、Chain、Node |
+
+关系：Trace → Run → Child Run。Graph 是父 Run，Node 是子 Run，Node 里的 Model 可能是更深一级的子 Run。普通 `console.log` 很难还原整条嵌套调用链，Trace 可以。
+
+Tags / Metadata 用来筛选，不要一次加几十个字段。V33 只加了少量：`version: "v33"`、`feature`、`environment: "development"`，以及 run name（如 `v33-tool-agent`、`knowledge-search`）。以后可以按环境、功能、Agent 版本过滤。
+
+### Token / Latency / Cost
+
+从 Trace 里定位即可，不要做 Dashboard。
+
+- **Token**：某次 Model 的输入 / 输出用了多少 token（取决于 provider 是否回传 usage）
+- **Latency**：一次 Run 花了多久
+- **Cost**：LangSmith / Provider 能算就看；不要自己硬编码价格
+
+### 六个 Demo（各自独立跑）
+
+| 命令 | 文件 | 只研究这一件事 |
+| --- | --- | --- |
+| `pnpm v33-basic-trace` | `src/v33/01-basic-trace.ts` | 一次 `model.invoke` = 一条 Run |
+| `pnpm v33-graph-trace` | `src/v33/02-graph-trace.ts` | Graph → analyze / answer → Model 树 |
+| `pnpm v33-tool-trace` | `src/v33/03-tool-trace.ts` | Model → calculator → Model |
+| `pnpm v33-rag-trace` | `src/v33/04-rag-trace.ts` | RAG 检索链路 |
+| `pnpm v33-error-trace` | `src/v33/05-error-trace.ts` | throw 时错误落在哪个 Run |
+| `pnpm v33-error-trace -- --caught` | 同上 | catch 后返回 ToolMessage |
+| `pnpm v33-v32-trace "23 * 47 等于多少？"` | `src/v33/06-v32-agent-trace.ts` | 复用 V32，一次一个问题 |
+
+console 只打印最终回答（或错误提示），不要把 Trace JSON 打到终端。打开 LangSmith UI 看树。
+
+**1. basic-trace**
+
+问：简单解释一下 LangGraph。重点观察：输入 messages、模型名称、输出 AIMessage、开始/结束时间、耗时、Token Usage。
+
+**2. graph-trace**
+
+`START → analyze → answer → END`。最外层 Graph Run，下面 analyze Node 里有模型调用，然后 answer Node 里又有模型调用。
+
+**3. tool-trace**
+
+问：23 * 47 等于多少？找到第一次 Model 的 `tool_calls`，calculator 输入 `a=23, b=47, operation=multiply`，输出 1081，第二次 Model 输入里已有 ToolMessage，再看最终 AIMessage。这就是把打断点看过的 Agent Loop 画成一张调用链。
+
+**4. rag-trace**
+
+问：LangGraph Checkpoint 是什么？区分 Agent Model、Knowledge Tool、Retriever / Vector Search、最终 Model。RAG 答错不要只看最终答案。
+
+排查顺序：
+
+1. 用户原始 Question 是否正确进入 Agent
+2. 模型是否真的选择调用 RAG Tool
+3. 实际检索 Query 是什么
+4. Retriever 找回了哪些 Documents
+5. 真正传给最终 Model 的 Context 是什么
+6. 最终 Model 怎么使用这些 Context
+
+错误可能发生在检索前、检索阶段、检索后、生成阶段，不一定是 LLM 自己的问题。
+
+**5. error-trace**
+
+`unstableTool` 在 `mode=fail` 时 throw。console 通常只看到 `Error: tool failed`。Trace 可以看到：Graph → Agent Node → Tool Node → unstableTool → Error。
+
+`--caught` 对照：catch 后返回「工具调用失败」，Graph 可能成功结束。技术异常和业务可恢复失败不是一回事。不要一次脚本跑两个场景。
+
+**6. v32-trace**
+
+直接复用 `createAgentRuntime()`。一次只传一个问题，例如：
+
+```bash
+pnpm v33-v32-trace "23 * 47 等于多少？"
+pnpm v33-v32-trace "LangGraph Checkpoint 是什么？"
+pnpm v33-v32-trace "查询 demo-project 项目信息。"
+```
+
+目标：Graph → Model → Tool / RAG / MCP → ToolMessage → Model → Final Answer。Checkpointer 仍会用，但不深入追它。
+
+### Trace 排查方法
+
+以后用户说「Agent 回答错了」，不要第一反应改 Prompt。先打开 Trace：
+
+1. 最外层 Graph 是否成功
+2. Graph 实际走了哪些 Node
+3. 第一次 Model 为什么选择某个 Tool
+4. Tool 输入对不对
+5. Tool 输出对不对
+6. ToolMessage 有没有正确回到 Model
+7. 最终 Prompt / Messages 和最终回答
+
+### 常见问题对照
+
+| 现象 | 先查什么 |
+| --- | --- |
+| Agent 没调用 Tool | Tool 是否 bind、description / schema、第一次 Model Run 的输出 |
+| Tool 调了但参数错 | `AIMessage.tool_calls` 里的 args |
+| Tool 返回对但最终回答错 | ToolMessage 是否进入第二次 Model messages，System Prompt 是否冲突 |
+| RAG 回答错误 | Query、Documents、Context、最终 Model |
+| Agent 很慢 | 每个 Model / Tool / Retriever Run 的 duration |
+| Token 花费太高 | 哪次 Model 输入特别长、RAG Context 是否太大、多轮历史是否无限增长 |
+
+### 断点 vs Trace
+
+| | 适合看什么 |
+| --- | --- |
+| 断点 | 此刻某个变量到底是什么 |
+| Trace | 这次请求从开始到结束经历了什么 |
+
+生产环境通常没法随时打断点，所以 Observability 重要。但 V33 仍然值得在这些位置打断点对照 UI：
+
+1. `model.invoke` 前后
+2. Graph Node 进入和退出
+3. `AIMessage.tool_calls` 返回处
+4. Tool 真正执行处
+5. ToolMessage 回到模型之前
+6. Retriever 返回 Documents
+7. 故意 throw 的 Tool
+
+### Agent Trace 心智模型
+
+```text
+User Request
+  → Graph Trace
+    → Node Run
+      → Model Run
+      → Tool Run / Retriever Run
+      → Model Run
+    → Final Answer
+```
+
+学完 V33，应该能做到：打开 Trace，沿 Graph → Model → Tool/RAG → Model 一层一层找到出错位置。不必背 LangSmith SDK。
+
+### 这一版明确不做
+
+- Evaluation / 测试数据集 / 自动评分（留给 V34）
+- Prompt A/B Test
+- Production Monitoring Alert
+- 复杂 Sampling、OpenTelemetry 深度接入
+- 完整 Dashboard、自己硬编码价格
+- V34
 

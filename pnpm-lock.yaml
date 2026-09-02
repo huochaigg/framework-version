@@ -35,6 +35,9 @@ importers:
       express:
         specifier: ^4.22.2
         version: 4.22.2
+      langsmith:
+        specifier: ^0.9.0
+        version: 0.9.0(openai@7.5.0(zod@3.25.76))
       zod:
         specifier: ^3.25.76
         version: 3.25.76

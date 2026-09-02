@@ -2,7 +2,7 @@
   "name": "agent-framework-learning",
   "version": "21.0.0",
   "private": true,
-  "description": "LangChain / LangGraph 学习项目。V21～V31 概念 Demo，V32 Complete LangGraph Agent Project。",
+  "description": "LangChain / LangGraph 学习项目。V21～V31 概念 Demo，V32 Complete Agent，V33 LangSmith Observability。",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -43,7 +43,13 @@
     "v32-agent-cli": "tsx src/v32/cli.ts",
     "v32-server": "tsx src/v32/index.ts",
     "v32-checkpoint-test": "tsx src/v32/checkpoint-test.ts",
-    "v32-stream-test": "tsx src/v32/stream-test.ts"
+    "v32-stream-test": "tsx src/v32/stream-test.ts",
+    "v33-basic-trace": "tsx src/v33/01-basic-trace.ts",
+    "v33-graph-trace": "tsx src/v33/02-graph-trace.ts",
+    "v33-tool-trace": "tsx src/v33/03-tool-trace.ts",
+    "v33-rag-trace": "tsx src/v33/04-rag-trace.ts",
+    "v33-error-trace": "tsx src/v33/05-error-trace.ts",
+    "v33-v32-trace": "tsx src/v33/06-v32-agent-trace.ts"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.45",
@@ -55,6 +61,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
+    "langsmith": "^0.9.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
